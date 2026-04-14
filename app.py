@@ -26,12 +26,20 @@ st.markdown("""
 #MainMenu, footer, header { visibility:hidden !important; }
 [data-testid="collapsedControl"] { display:none !important; }
 [data-testid="stSidebar"] { display:none !important; }
-.block-container { padding:0 !important; max-width:100% !important; }
+.block-container {
+    max-width:920px !important;
+    padding:0 40px 80px !important;
+    margin:0 auto !important;
+}
 [data-testid="stAppViewContainer"] { background:#fff; }
-* { font-family:'Inter',sans-serif !important; box-sizing:border-box; }
-
-/* Wrapper centré */
-.page { max-width:920px; margin:0 auto; padding:0 40px 80px; }
+html, body, [class*="css"], * {
+    font-family:'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,sans-serif !important;
+    box-sizing:border-box;
+}
+h1, h2, h3, h4, h5 {
+    font-family:'Inter','SF Pro Display',-apple-system,sans-serif !important;
+    letter-spacing:-.5px;
+}
 
 /* Nav */
 .nav {
@@ -285,7 +293,6 @@ def render_results(profile: UserProfile, result: AnalysisResult, profile_id: str
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.phase == "landing":
 
-    st.markdown('<div class="page">', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="nav">
@@ -427,13 +434,11 @@ if st.session_state.phase == "landing":
             st.session_state.phase = "url_input"
             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 1 — URL input (fallback si arrivée directe)
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "url_input":
-    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""
     <div class="nav">
         <span class="nav-logo">✦ &nbsp;Repositionnement IA</span>
@@ -479,13 +484,11 @@ elif st.session_state.phase == "url_input":
         st.session_state.phase = "manual_input"
         st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 1b — Saisie manuelle
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "manual_input":
-    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
     st.markdown("<br>")
     st.markdown("#### Saisissez votre profil")
@@ -515,7 +518,6 @@ elif st.session_state.phase == "manual_input":
             st.session_state.phase = "confirming"
             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 2 — Confirmation
@@ -523,7 +525,6 @@ elif st.session_state.phase == "manual_input":
 elif st.session_state.phase == "confirming":
     data = st.session_state.linkedin_data
 
-    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
     st.markdown("<br>")
 
@@ -569,7 +570,6 @@ elif st.session_state.phase == "confirming":
             st.session_state.phase = "analyzing"
             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 3 — Analyse
@@ -577,7 +577,6 @@ elif st.session_state.phase == "confirming":
 elif st.session_state.phase == "analyzing":
     profile = st.session_state.profile
 
-    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
     st.markdown("<br>")
 
@@ -611,13 +610,10 @@ elif st.session_state.phase == "analyzing":
     st.session_state.phase = "done"
     st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 4 — Résultats
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "done":
-    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
     render_results(st.session_state.profile, st.session_state.result, st.session_state.profile_id)
-    st.markdown('</div>', unsafe_allow_html=True)
