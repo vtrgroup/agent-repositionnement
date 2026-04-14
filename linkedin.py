@@ -206,31 +206,51 @@ def fetch_via_apify(url: str) -> Dict[str, Any]:
 
 def map_apify_to_profile(a: Dict[str, Any]) -> Dict[str, Any]:
     """Transforme la réponse Apify en format attendu par l'app."""
-    full_name = a.get("fullName") or f"{a.get('firstName','')} {a.get('lastName','')}".strip()
+    full_name = (
+        a.get("fullName")
+        or a.get("name")
+        or a.get("personName")
+        or a.get("profileName")
+        or a.get("displayName")
+        or f"{a.get('firstName') or a.get('first_name','')} {a.get('lastName') or a.get('last_name','')}".strip()
+    )
 
     # Expériences — estimer années
-    experiences = a.get("experiences") or a.get("experience") or []
-    total_years = 0
+    experiences = a.get("experiences") or a.get("experience") or a.get("workExperience") or []
+    total_years = 0.0
     current_poste = ""
     current_company = ""
+    earliest_year = None
+
     for exp in experiences:
-        # Apify formats dates as strings like "Jan 2020 - Present" or duration
-        duration = exp.get("duration") or ""
-        years_match = re.search(r"(\d+)\s*(?:yr|an)", duration)
-        if years_match:
-            total_years += int(years_match.group(1))
-        months_match = re.search(r"(\d+)\s*(?:mo|moi)", duration)
-        if months_match:
-            total_years += int(months_match.group(1)) / 12
+        duration = exp.get("duration") or exp.get("dateRange") or ""
+        y = re.search(r"(\d+)\s*(?:yr|year|an)", duration, re.IGNORECASE)
+        m = re.search(r"(\d+)\s*(?:mo|month|moi)", duration, re.IGNORECASE)
+        if y:
+            total_years += int(y.group(1))
+        if m:
+            total_years += int(m.group(1)) / 12
+
+        # Chercher année de début pour fallback
+        year_match = re.search(r"(19|20)\d{2}", duration)
+        if year_match:
+            yr = int(year_match.group(0))
+            if earliest_year is None or yr < earliest_year:
+                earliest_year = yr
 
         is_current = "present" in duration.lower() or "présent" in duration.lower() or not exp.get("endDate")
         if is_current and not current_poste:
-            current_poste = exp.get("title") or exp.get("position", "")
-            current_company = exp.get("companyName") or exp.get("company", "")
+            current_poste = exp.get("title") or exp.get("position") or exp.get("role", "")
+            current_company = exp.get("companyName") or exp.get("company") or exp.get("organisation", "")
 
     if not current_poste and experiences:
-        current_poste = experiences[0].get("title") or experiences[0].get("position", "")
-        current_company = experiences[0].get("companyName") or experiences[0].get("company", "")
+        e0 = experiences[0]
+        current_poste = e0.get("title") or e0.get("position") or e0.get("role", "")
+        current_company = e0.get("companyName") or e0.get("company") or e0.get("organisation", "")
+
+    # Fallback : si aucune durée parsée, utiliser earliest_year
+    if total_years == 0 and earliest_year:
+        total_years = max(0, 2026 - earliest_year)
 
     # Formations
     educations = a.get("educations") or a.get("education") or []
