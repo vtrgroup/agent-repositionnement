@@ -12,7 +12,7 @@ import anthropic
 from config import MODEL
 
 APIFY_API_TOKEN = os.environ.get("APIFY_API_TOKEN", "")
-APIFY_ACTOR_ID = "dev_fusion~linkedin-profile-scraper"
+APIFY_ACTOR_ID = "anchor~linkedin-profile-enrichment"
 APIFY_URL = f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items"
 
 # Headers imitant un navigateur Chrome réel
@@ -191,11 +191,11 @@ def fetch_via_apify(url: str) -> Dict[str, Any]:
         resp = requests.post(
             APIFY_URL,
             params={"token": APIFY_API_TOKEN},
-            json={"profileUrls": [url]},
-            timeout=90,
+            json={"startUrls": [{"url": url}]},
+            timeout=120,
         )
-        if resp.status_code != 200:
-            return {"error": f"apify_http_{resp.status_code}: {resp.text[:200]}"}
+        if resp.status_code not in (200, 201):
+            return {"error": f"apify_http_{resp.status_code}: {resp.text[:300]}"}
         data = resp.json()
         if not data or not isinstance(data, list) or len(data) == 0:
             return {"error": "apify_empty_response"}
