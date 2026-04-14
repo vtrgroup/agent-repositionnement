@@ -117,6 +117,45 @@ h1, h2, h3, h4, h5 {
     border-radius:100px; padding:6px 15px; font-size:12.5px; font-weight:500;
 }
 
+/* Testimonials */
+.testis { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.testi {
+    background:#fff; border:1px solid #f1f5f9; border-radius:16px;
+    padding:24px 22px; transition:box-shadow .2s;
+}
+.testi:hover { box-shadow:0 8px 24px rgba(0,0,0,.06); }
+.testi-quote {
+    font-size:14px; color:#334155; line-height:1.65;
+    margin-bottom:20px; font-style:italic;
+}
+.testi-who { display:flex; align-items:center; gap:12px; }
+.testi-img {
+    width:42px; height:42px; border-radius:50%;
+    object-fit:cover; flex-shrink:0;
+}
+.testi-name { font-size:13.5px; font-weight:700; color:#0f172a; margin:0; }
+.testi-role { font-size:12px; color:#64748b; margin:2px 0 0; }
+.testi-arrow { color:#5b5bd6; font-weight:600; }
+
+/* Personas / For who */
+.personas { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.persona {
+    text-align:center; padding:20px 16px;
+    border:1px solid #f1f5f9; border-radius:16px; background:#fafafa;
+}
+.persona-img {
+    width:84px; height:84px; border-radius:50%; object-fit:cover;
+    margin:0 auto 14px; border:3px solid #fff;
+    box-shadow:0 4px 16px rgba(0,0,0,.08);
+}
+.persona-tag {
+    display:inline-block; background:#ede9fe; color:#5b21b6;
+    border-radius:100px; padding:3px 10px; font-size:11px; font-weight:600;
+    margin-bottom:8px; letter-spacing:.3px;
+}
+.persona-name { font-size:14px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+.persona-desc { font-size:12.5px; color:#64748b; line-height:1.55; }
+
 /* CTA band */
 .cta-band {
     background:#5b5bd6; border-radius:20px;
@@ -426,6 +465,82 @@ if st.session_state.phase == "landing":
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
+
+    # Personas — pour qui
+    st.markdown("""
+    <div style="text-align:center;margin-bottom:32px;">
+        <div class="s-label">Pour qui</div>
+        <div class="s-title" style="margin:0 auto;">Des parcours<br>comme le vôtre</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="personas">
+        <div class="persona">
+            <img class="persona-img" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=faces" alt="">
+            <div class="persona-tag">Marketing</div>
+            <div class="persona-name">Camille, 34 ans</div>
+            <div class="persona-desc">12 ans en marketing B2B,<br>veut piloter des projets IA<br>dans son secteur.</div>
+        </div>
+        <div class="persona">
+            <img class="persona-img" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces" alt="">
+            <div class="persona-tag">Finance</div>
+            <div class="persona-name">Thomas, 41 ans</div>
+            <div class="persona-desc">Contrôleur de gestion,<br>cherche un rôle plus tech<br>sans reprendre d'études.</div>
+        </div>
+        <div class="persona">
+            <img class="persona-img" src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=faces" alt="">
+            <div class="persona-tag">RH</div>
+            <div class="persona-name">Sarah, 29 ans</div>
+            <div class="persona-desc">DRH adjointe, veut devenir<br>référente IA au sein de<br>son entreprise.</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
+
+    # Témoignages
+    st.markdown("""
+    <div style="text-align:center;margin-bottom:32px;">
+        <div class="s-label">Témoignages</div>
+        <div class="s-title" style="margin:0 auto;">Ils ont trouvé<br>leur rôle IA</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <div class="testis">
+        <div class="testi">
+            <div class="testi-quote">"J'hésitais depuis des mois. En 5 minutes j'ai eu une recommandation claire et un plan concret. Je démarre ma formation la semaine prochaine."</div>
+            <div class="testi-who">
+                <img class="testi-img" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=faces" alt="">
+                <div>
+                    <div class="testi-name">Marie L.</div>
+                    <div class="testi-role">Chef de projet <span class="testi-arrow">→</span> AI Product Manager</div>
+                </div>
+            </div>
+        </div>
+        <div class="testi">
+            <div class="testi-quote">"Le score de compatibilité m'a donné confiance. J'étais persuadé qu'il fallait tout recommencer — en fait 70% de mes compétences sont transférables."</div>
+            <div class="testi-who">
+                <img class="testi-img" src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=faces" alt="">
+                <div>
+                    <div class="testi-name">Julien M.</div>
+                    <div class="testi-role">Consultant <span class="testi-arrow">→</span> AI Solutions Consultant</div>
+                </div>
+            </div>
+        </div>
+        <div class="testi">
+            <div class="testi-quote">"Enfin un outil qui ne dit pas juste 'apprenez Python'. Le plan est adapté à mon niveau et à mon emploi du temps. Je recommande."</div>
+            <div class="testi-who">
+                <img class="testi-img" src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=faces" alt="">
+                <div>
+                    <div class="testi-name">Laure B.</div>
+                    <div class="testi-role">RH <span class="testi-arrow">→</span> AI Customer Success</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
