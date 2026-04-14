@@ -50,7 +50,7 @@ h1, h2, h3, h4, h5 {
 .nav-right { font-size:13px; color:#94a3b8; }
 
 /* Hero */
-.hero { padding:72px 0 56px; text-align:center !important; }
+.hero { padding:40px 0 16px; text-align:center !important; }
 .hero * { text-align:center !important; }
 .hero-eyebrow {
     display:inline-block; background:#f0eeff; color:#5b5bd6;
@@ -63,9 +63,9 @@ h1, h2, h3, h4, h5 {
 }
 .hero h1 span { color:#5b5bd6 !important; }
 .hero-sub {
-    font-size:17px; color:#64748b; line-height:1.75;
+    font-size:17px; color:#64748b; line-height:1.7;
     max-width:480px; margin-left:auto !important; margin-right:auto !important;
-    margin-bottom:40px; font-weight:400; display:block;
+    margin-bottom:12px; font-weight:400; display:block;
 }
 
 /* Input URL dans hero */
