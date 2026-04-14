@@ -2,6 +2,7 @@
 
 import json
 import re
+from typing import Dict, List
 import streamlit as st
 import anthropic
 
@@ -298,6 +299,65 @@ button[kind="primaryFormSubmit"]:hover {
     border-radius:10px; padding:12px 18px; color:#166534; font-weight:600;
     font-size:14px;
 }
+
+/* ── Training dashboard ── */
+.xp-bar-wrap {
+    background:linear-gradient(135deg,#5b5bd6,#7c3aed);
+    border-radius:20px; padding:28px 32px; color:#fff; margin-bottom:32px;
+}
+.xp-bar-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.xp-label { font-size:12px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; opacity:.85; }
+.xp-value { font-size:30px; font-weight:900; letter-spacing:-.5px; }
+.xp-bar-bg {
+    width:100%; height:10px; background:rgba(255,255,255,.2);
+    border-radius:100px; overflow:hidden;
+}
+.xp-bar-fill {
+    height:100%; background:#fff; border-radius:100px;
+    transition:width .4s;
+}
+.xp-stats { display:flex; gap:24px; margin-top:14px; font-size:13px; opacity:.9; }
+
+.mission-card {
+    background:#fff; border:1.5px solid #e2e8f0; border-radius:16px;
+    padding:22px 26px; margin-bottom:14px;
+    display:flex; align-items:center; gap:20px;
+    transition:border-color .2s, box-shadow .2s;
+}
+.mission-card.done { border-color:#22c55e; background:#f0fdf4; }
+.mission-card.active { border-color:#5b5bd6; box-shadow:0 4px 20px rgba(91,91,214,.15); }
+.mission-card.locked { opacity:.5; }
+.mission-num {
+    flex-shrink:0; width:44px; height:44px; border-radius:12px;
+    background:#f5f3ff; color:#5b5bd6; font-size:17px; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+}
+.mission-card.done .mission-num { background:#22c55e; color:#fff; }
+.mission-body { flex:1; }
+.mission-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+.mission-meta { font-size:12.5px; color:#64748b; }
+.mission-badge {
+    background:#22c55e; color:#fff; padding:5px 12px; border-radius:100px;
+    font-size:12px; font-weight:700;
+}
+.mission-xp { color:#5b5bd6; font-weight:700; font-size:13px; margin-top:3px; }
+
+/* Mission runner */
+.mission-brief {
+    background:#f5f3ff; border:1px solid #ddd6fe; border-radius:14px;
+    padding:20px 24px; margin-bottom:20px;
+}
+.mission-brief-label { font-size:11px; font-weight:700; letter-spacing:.8px; color:#5b21b6; text-transform:uppercase; margin-bottom:8px; }
+.mission-brief-title { font-size:18px; font-weight:800; color:#0f172a; margin-bottom:10px; }
+.mission-brief-desc { font-size:14px; color:#475569; line-height:1.65; }
+
+.score-result {
+    text-align:center; padding:32px; background:#fff;
+    border:2px solid #5b5bd6; border-radius:16px; margin-top:20px;
+}
+.score-result-num { font-size:60px; font-weight:900; color:#5b5bd6; line-height:1; }
+.score-result-lbl { font-size:13px; color:#64748b; margin-top:8px; }
+.score-result-fb { font-size:14px; color:#334155; margin-top:16px; line-height:1.6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -310,6 +370,11 @@ def init_state():
         "result": None,
         "profile_id": None,
         "api_history": [],
+        # Gamification
+        "mission_status": {},    # {0: {"status":"done","score":85,"feedback":"..."}, ...}
+        "mission_chat": {},      # {0: [{"role":"user","content":"..."}], ...}
+        "active_mission": None,  # index de la mission en cours
+        "total_xp": 0,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -376,6 +441,259 @@ JSON :
     raw = re.sub(r"\s*```$", "", raw).strip()
     return AnalysisResult(**json.loads(raw))
 
+def mission_coach_system(profile: UserProfile, result: AnalysisResult, mission: Dict) -> str:
+    return f"""Tu es le coach d'entraînement IA de {profile.nom}, qui travaille actuellement comme {profile.poste_actuel} dans le secteur {profile.secteur} avec {profile.annees_experience} ans d'expérience.
+Son rôle cible : {result.role_cible}.
+
+Ta mission : l'accompagner dans l'exercice suivant, appliqué à SON contexte métier réel.
+
+EXERCICE EN COURS :
+- Titre : {mission['etape']}
+- Durée indicative : {mission['duree']}
+- Méthode : {mission['ressources']}
+
+Ton rôle :
+1. Présente brièvement l'objectif concret en 2 phrases
+2. Pose UNE question à la fois pour l'aider à démarrer l'exercice
+3. Accompagne-le pas à pas, adapte à son métier
+4. Reste motivant, concret, pragmatique
+5. Quand il a produit un livrable satisfaisant, dis-lui qu'il peut valider l'exercice"""
+
+
+def evaluate_mission(profile: UserProfile, mission: Dict, chat_history: List[Dict]) -> Dict:
+    """Demande à Claude d'évaluer la mission et de donner un score + feedback."""
+    client = get_client()
+    conversation_text = "\n\n".join(
+        f"[{m['role'].upper()}]\n{m['content']}" for m in chat_history
+    )
+    eval_prompt = f"""Tu évalues l'accomplissement d'une mission d'entraînement IA.
+
+UTILISATEUR : {profile.nom}, {profile.poste_actuel} ({profile.secteur})
+
+MISSION DEMANDÉE :
+- {mission['etape']}
+- Méthode : {mission['ressources']}
+
+CONVERSATION AVEC LE COACH :
+{conversation_text[:6000]}
+
+Évalue la qualité du travail réalisé. Retourne UNIQUEMENT ce JSON :
+{{
+  "score": entier_0_100,
+  "feedback": "2-3 phrases : ce qui a été bien fait, ce qu'il faudrait approfondir",
+  "badge": "un nom de badge court valorisant (ex: 'Explorateur IA', 'Tacticien de prompts', 'Stratège métier')"
+}}
+
+Critères de scoring :
+- 85-100 : livrable concret, appliqué au métier, qualité pro
+- 60-84 : solide mais peut être plus détaillé/personnalisé
+- 40-59 : esquissé mais manque de profondeur
+- 0-39 : insuffisant, à reprendre
+
+Sois exigeant mais encourageant. UNIQUEMENT le JSON."""
+
+    resp = client.messages.create(
+        model=MODEL, max_tokens=512,
+        system="Tu es un évaluateur exigeant et juste. Retourne uniquement du JSON valide.",
+        messages=[{"role": "user", "content": eval_prompt}],
+    )
+    raw = resp.content[-1].text.strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw).strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"score": 60, "feedback": "Évaluation indisponible, relance possible.", "badge": "Apprenti IA"}
+
+
+def render_training_dashboard(profile: UserProfile, result: AnalysisResult):
+    """Dashboard de gamification avec XP et missions."""
+    missions = result.plan_formation
+    n_total = len(missions)
+    statuses = st.session_state.mission_status or {}
+    n_done = sum(1 for i in range(n_total) if statuses.get(i, {}).get("status") == "done")
+    total_xp = st.session_state.total_xp
+    max_xp = n_total * 500
+    progress_pct = int((n_done / n_total) * 100) if n_total else 0
+
+    st.markdown(f"""
+    <div class="xp-bar-wrap">
+        <div class="xp-bar-top">
+            <div>
+                <div class="xp-label">Votre progression</div>
+                <div class="xp-value">{total_xp} XP</div>
+            </div>
+            <div style="text-align:right;">
+                <div class="xp-label">{n_done} / {n_total} missions</div>
+                <div style="font-size:22px;font-weight:800;margin-top:4px;">{progress_pct}%</div>
+            </div>
+        </div>
+        <div class="xp-bar-bg">
+            <div class="xp-bar-fill" style="width:{progress_pct}%;"></div>
+        </div>
+        <div class="xp-stats">
+            <span>🎯 Rôle cible : {result.role_cible}</span>
+            <span>🏆 Niveau max : {max_xp} XP</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Vos missions d'entraînement")
+    st.caption("Chaque mission est un exercice pratique réalisé directement avec Claude Opus 4.6.")
+
+    for i, mission in enumerate(missions):
+        status = statuses.get(i, {}).get("status", "todo")
+        locked = i > 0 and statuses.get(i - 1, {}).get("status") != "done"
+
+        card_class = "mission-card"
+        if status == "done":
+            card_class += " done"
+        elif locked:
+            card_class += " locked"
+
+        col_card, col_btn = st.columns([5, 1.5])
+        with col_card:
+            status_badge = ""
+            if status == "done":
+                s = statuses[i]
+                status_badge = f'<div class="mission-xp">✓ {s.get("score",0)} / 100 · {s.get("badge","")}</div>'
+            elif locked:
+                status_badge = '<div class="mission-meta" style="color:#cbd5e1;">🔒 Débloquée après la mission précédente</div>'
+            else:
+                status_badge = '<div class="mission-xp">💰 500 XP à gagner</div>'
+
+            st.markdown(f"""
+            <div class="{card_class}">
+                <div class="mission-num">{i+1}</div>
+                <div class="mission-body">
+                    <div class="mission-title">{mission['etape']}</div>
+                    <div class="mission-meta">⏱ {mission['duree']} &nbsp;·&nbsp; {mission['ressources']}</div>
+                    {status_badge}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_btn:
+            if status == "done":
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Revoir", key=f"review_{i}", use_container_width=True):
+                    st.session_state.active_mission = i
+                    st.session_state.phase = "mission"
+                    st.rerun()
+            elif locked:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.button("🔒", key=f"locked_{i}", use_container_width=True, disabled=True)
+            else:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Démarrer →", key=f"start_{i}", type="primary", use_container_width=True):
+                    st.session_state.active_mission = i
+                    st.session_state.phase = "mission"
+                    st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("← Retour aux résultats", use_container_width=False):
+        st.session_state.phase = "done"
+        st.rerun()
+
+
+def render_mission_runner(profile: UserProfile, result: AnalysisResult):
+    """Interface chat pour réaliser une mission avec Claude."""
+    idx = st.session_state.active_mission
+    mission = result.plan_formation[idx]
+
+    st.markdown(f"""
+    <div class="mission-brief">
+        <div class="mission-brief-label">Mission {idx+1} / {len(result.plan_formation)}</div>
+        <div class="mission-brief-title">{mission['etape']}</div>
+        <div class="mission-brief-desc">
+            <strong>Durée :</strong> {mission['duree']}<br>
+            <strong>Méthode :</strong> {mission['ressources']}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_back, col_validate = st.columns([1, 1])
+    with col_back:
+        if st.button("← Retour au tableau de bord", use_container_width=True):
+            st.session_state.phase = "training"
+            st.rerun()
+    with col_validate:
+        can_validate = len(st.session_state.mission_chat.get(idx, [])) >= 2
+        if st.button("Valider ma mission ✓", type="primary", use_container_width=True, disabled=not can_validate):
+            with st.spinner("Évaluation en cours..."):
+                evaluation = evaluate_mission(profile, mission, st.session_state.mission_chat[idx])
+            score = evaluation.get("score", 0)
+            xp_gained = score * 5
+            st.session_state.mission_status[idx] = {
+                "status": "done",
+                "score": score,
+                "feedback": evaluation.get("feedback", ""),
+                "badge": evaluation.get("badge", "Apprenti IA"),
+            }
+            st.session_state.total_xp += xp_gained
+            st.balloons()
+            st.markdown(f"""
+            <div class="score-result">
+                <div class="score-result-num">{score} / 100</div>
+                <div class="score-result-lbl">Mission validée · +{xp_gained} XP · 🏆 {evaluation.get('badge','')}</div>
+                <div class="score-result-fb">{evaluation.get('feedback','')}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("#### Votre coach d'entraînement")
+
+    # Initialiser chat si vide
+    if idx not in st.session_state.mission_chat or not st.session_state.mission_chat[idx]:
+        st.session_state.mission_chat[idx] = []
+        # Premier message du coach
+        client = get_client()
+        system = mission_coach_system(profile, result, mission)
+        with st.chat_message("assistant", avatar="🤖"):
+            placeholder = st.empty()
+            full = ""
+            with client.messages.stream(
+                model=MODEL, max_tokens=500, system=system,
+                messages=[{"role": "user", "content": "Présente-moi cette mission et lance-moi le premier exercice."}],
+                thinking={"type": "adaptive"},
+            ) as stream:
+                for chunk in stream.text_stream:
+                    full += chunk
+                    placeholder.markdown(full + "▌")
+            placeholder.markdown(full)
+        st.session_state.mission_chat[idx].append({"role": "assistant", "content": full})
+
+    # Afficher historique
+    for msg in st.session_state.mission_chat[idx]:
+        avatar = "🤖" if msg["role"] == "assistant" else "👤"
+        with st.chat_message(msg["role"], avatar=avatar):
+            st.markdown(msg["content"])
+
+    # Input utilisateur
+    user_input = st.chat_input("Votre réponse ou question...")
+    if user_input:
+        st.session_state.mission_chat[idx].append({"role": "user", "content": user_input})
+        with st.chat_message("user", avatar="👤"):
+            st.markdown(user_input)
+
+        client = get_client()
+        system = mission_coach_system(profile, result, mission)
+        with st.chat_message("assistant", avatar="🤖"):
+            placeholder = st.empty()
+            full = ""
+            with client.messages.stream(
+                model=MODEL, max_tokens=700, system=system,
+                messages=st.session_state.mission_chat[idx],
+                thinking={"type": "adaptive"},
+            ) as stream:
+                for chunk in stream.text_stream:
+                    full += chunk
+                    placeholder.markdown(full + "▌")
+            placeholder.markdown(full)
+        st.session_state.mission_chat[idx].append({"role": "assistant", "content": full})
+        st.rerun()
+
+
 def render_results(profile: UserProfile, result: AnalysisResult, profile_id: str):
     st.markdown("---")
     st.markdown("### Résultats de votre analyse")
@@ -415,10 +733,25 @@ def render_results(profile: UserProfile, result: AnalysisResult, profile_id: str
     </div>""", unsafe_allow_html=True)
     st.markdown(f'<div class="saved-bar">Profil sauvegardé — ID : {profile_id}</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Analyser un autre profil →"):
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
-        st.rerun()
+
+    # CTA vers l'entraînement
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#5b5bd6,#7c3aed);border-radius:20px;padding:36px 32px;text-align:center;color:#fff;margin:20px 0;">
+        <h3 style="color:#fff;font-size:22px;font-weight:800;margin-bottom:8px;">🎮 Prêt à démarrer votre entraînement ?</h3>
+        <p style="color:rgba(255,255,255,.85);margin-bottom:20px;font-size:14px;">Réalisez vos 4 missions avec Claude Opus, gagnez des XP et débloquez votre rôle IA.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("🚀 Démarrer l'entraînement", type="primary", use_container_width=True):
+            st.session_state.phase = "training"
+            st.rerun()
+    with col_b:
+        if st.button("Analyser un autre profil", use_container_width=True):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # LANDING
@@ -897,3 +1230,19 @@ elif st.session_state.phase == "analyzing":
 elif st.session_state.phase == "done":
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
     render_results(st.session_state.profile, st.session_state.result, st.session_state.profile_id)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRAINING — Dashboard gamifié
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.phase == "training":
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span><span class="nav-right">Mode entraînement 🎮</span></div>""", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    render_training_dashboard(st.session_state.profile, st.session_state.result)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MISSION RUNNER
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.phase == "mission":
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span><span class="nav-right">Mission en cours</span></div>""", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    render_mission_runner(st.session_state.profile, st.session_state.result)
