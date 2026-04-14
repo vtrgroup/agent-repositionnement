@@ -50,8 +50,34 @@ h1, h2, h3, h4, h5 {
 .nav-right { font-size:13px; color:#94a3b8; }
 
 /* Hero */
-.hero { padding:40px 0 16px; text-align:center !important; }
+.hero {
+    padding:56px 0 16px; text-align:center !important;
+    position:relative;
+}
+.hero::before {
+    content:''; position:absolute; top:-20px; left:50%; transform:translateX(-50%);
+    width:900px; height:500px; z-index:-1; pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(91,91,214,.10) 0%, rgba(91,91,214,0) 65%);
+}
 .hero * { text-align:center !important; }
+
+/* Social proof row au-dessus du titre */
+.social-proof {
+    display:inline-flex; align-items:center; gap:12px;
+    background:#fff; border:1px solid #f1f5f9; border-radius:100px;
+    padding:6px 18px 6px 8px; margin-bottom:22px;
+    box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+.avatar-stack { display:flex; }
+.avatar-stack img {
+    width:28px; height:28px; border-radius:50%;
+    border:2px solid #fff; object-fit:cover;
+    margin-left:-8px;
+}
+.avatar-stack img:first-child { margin-left:0; }
+.social-proof-text { font-size:12.5px; color:#475569; font-weight:500; }
+.social-proof-text strong { color:#0f172a; font-weight:700; }
+
 .hero-eyebrow {
     display:inline-block; background:#f0eeff; color:#5b5bd6;
     border-radius:100px; padding:5px 14px; font-size:11px; font-weight:700;
@@ -402,6 +428,16 @@ if st.session_state.phase == "landing":
 
     st.markdown("""
     <div class="hero">
+        <div class="social-proof">
+            <div class="avatar-stack">
+                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces" alt="">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces" alt="">
+                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces" alt="">
+                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=faces" alt="">
+                <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces" alt="">
+            </div>
+            <span class="social-proof-text"><strong>+200</strong> professionnels ont trouvé leur rôle IA</span>
+        </div>
         <div class="hero-eyebrow">Bilan professionnel gratuit</div>
         <h1>Votre place dans<br>l'économie <span>IA</span></h1>
         <p class="hero-sub">
