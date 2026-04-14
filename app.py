@@ -436,17 +436,35 @@ JSON :
         messages=[{"role": "user", "content": prompt}],
         thinking={"type": "adaptive"},
     )
-    raw = resp.content[-1].text.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw).strip()
-    try:
-        return AnalysisResult(**json.loads(raw))
-    except json.JSONDecodeError:
-        # Extraire le premier bloc {...} du texte (Claude a pu ajouter du préambule)
-        match = re.search(r"\{[\s\S]*\}", raw)
-        if match:
-            return AnalysisResult(**json.loads(match.group()))
-        raise
+    # Récupérer le texte (éviter les blocs thinking)
+    raw = ""
+    for block in resp.content:
+        if getattr(block, "type", None) == "text" or hasattr(block, "text"):
+            candidate = getattr(block, "text", "") or ""
+            if candidate.strip():
+                raw = candidate.strip()
+    raw = re.sub(r"```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```", "", raw).strip()
+
+    # Parser en trouvant le premier JSON valide dans le texte
+    def parse_json(text: str) -> Dict:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        # Scan : essayer tous les points où ça commence par {
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(text):
+            if ch == "{":
+                try:
+                    obj, _ = decoder.raw_decode(text[i:])
+                    return obj
+                except json.JSONDecodeError:
+                    continue
+        raise json.JSONDecodeError("Aucun JSON valide trouvé", text, 0)
+
+    data = parse_json(raw)
+    return AnalysisResult(**data)
 
 def mission_coach_system(profile: UserProfile, result: AnalysisResult, mission: Dict) -> str:
     return f"""Tu es le coach d'entraînement IA de {profile.nom}, qui travaille actuellement comme {profile.poste_actuel} dans le secteur {profile.secteur} avec {profile.annees_experience} ans d'expérience.
@@ -504,12 +522,24 @@ Sois exigeant mais encourageant. UNIQUEMENT le JSON."""
         system="Tu es un évaluateur exigeant et juste. Retourne uniquement du JSON valide.",
         messages=[{"role": "user", "content": eval_prompt}],
     )
-    raw = resp.content[-1].text.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw).strip()
+    raw = ""
+    for block in resp.content:
+        candidate = getattr(block, "text", "") or ""
+        if candidate.strip():
+            raw = candidate.strip()
+    raw = re.sub(r"```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```", "", raw).strip()
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(raw):
+            if ch == "{":
+                try:
+                    obj, _ = decoder.raw_decode(raw[i:])
+                    return obj
+                except json.JSONDecodeError:
+                    continue
         return {"score": 60, "feedback": "Évaluation indisponible, relance possible.", "badge": "Apprenti IA"}
 
 
