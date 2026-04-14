@@ -1,4 +1,4 @@
-"""Extraction automatique de profil LinkedIn — Proxycurl + scraping direct + Claude."""
+"""Extraction automatique de profil LinkedIn — Apify + scraping direct + Claude."""
 
 import json
 import os
@@ -11,8 +11,9 @@ import anthropic
 
 from config import MODEL
 
-PROXYCURL_API_KEY = os.environ.get("PROXYCURL_API_KEY", "")
-PROXYCURL_URL = "https://nubela.co/proxycurl/api/v2/linkedin"
+APIFY_API_TOKEN = os.environ.get("APIFY_API_TOKEN", "")
+APIFY_ACTOR_ID = "dev_fusion~linkedin-profile-scraper"
+APIFY_URL = f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items"
 
 # Headers imitant un navigateur Chrome réel
 BROWSER_HEADERS = {
@@ -181,80 +182,95 @@ CONTENU :
         return {"error": f"Parse error: {raw[:200]}"}
 
 
-def fetch_via_proxycurl(url: str) -> Dict[str, Any]:
-    """Utilise l'API Proxycurl pour récupérer un profil LinkedIn structuré."""
-    if not PROXYCURL_API_KEY:
-        return {"error": "no_proxycurl_key"}
+def fetch_via_apify(url: str) -> Dict[str, Any]:
+    """Utilise l'API Apify pour récupérer un profil LinkedIn structuré."""
+    if not APIFY_API_TOKEN:
+        return {"error": "no_apify_token"}
 
     try:
-        resp = requests.get(
-            PROXYCURL_URL,
-            headers={"Authorization": f"Bearer {PROXYCURL_API_KEY}"},
-            params={"url": url, "use_cache": "if-present"},
-            timeout=30,
+        resp = requests.post(
+            APIFY_URL,
+            params={"token": APIFY_API_TOKEN},
+            json={"profileUrls": [url]},
+            timeout=90,
         )
         if resp.status_code != 200:
-            return {"error": f"proxycurl_http_{resp.status_code}: {resp.text[:200]}"}
-        return resp.json()
+            return {"error": f"apify_http_{resp.status_code}: {resp.text[:200]}"}
+        data = resp.json()
+        if not data or not isinstance(data, list) or len(data) == 0:
+            return {"error": "apify_empty_response"}
+        return data[0]
     except requests.RequestException as e:
-        return {"error": f"proxycurl_error: {e}"}
+        return {"error": f"apify_error: {e}"}
 
 
-def map_proxycurl_to_profile(pc: Dict[str, Any]) -> Dict[str, Any]:
-    """Transforme la réponse Proxycurl en format attendu par l'app."""
-    full_name = f"{pc.get('first_name','')} {pc.get('last_name','')}".strip() or pc.get("full_name", "")
+def map_apify_to_profile(a: Dict[str, Any]) -> Dict[str, Any]:
+    """Transforme la réponse Apify en format attendu par l'app."""
+    full_name = a.get("fullName") or f"{a.get('firstName','')} {a.get('lastName','')}".strip()
 
     # Expériences — estimer années
-    experiences = pc.get("experiences", []) or []
+    experiences = a.get("experiences") or a.get("experience") or []
     total_years = 0
     current_poste = ""
     current_company = ""
     for exp in experiences:
-        starts = exp.get("starts_at") or {}
-        ends = exp.get("ends_at") or {}
-        if starts.get("year"):
-            end_year = ends.get("year") if ends else 2026
-            total_years += max(0, (end_year or 2026) - starts["year"])
-        if not current_poste and (exp.get("ends_at") is None):
-            current_poste = exp.get("title", "")
-            current_company = exp.get("company", "")
+        # Apify formats dates as strings like "Jan 2020 - Present" or duration
+        duration = exp.get("duration") or ""
+        years_match = re.search(r"(\d+)\s*(?:yr|an)", duration)
+        if years_match:
+            total_years += int(years_match.group(1))
+        months_match = re.search(r"(\d+)\s*(?:mo|moi)", duration)
+        if months_match:
+            total_years += int(months_match.group(1)) / 12
+
+        is_current = "present" in duration.lower() or "présent" in duration.lower() or not exp.get("endDate")
+        if is_current and not current_poste:
+            current_poste = exp.get("title") or exp.get("position", "")
+            current_company = exp.get("companyName") or exp.get("company", "")
+
     if not current_poste and experiences:
-        current_poste = experiences[0].get("title", "")
-        current_company = experiences[0].get("company", "")
+        current_poste = experiences[0].get("title") or experiences[0].get("position", "")
+        current_company = experiences[0].get("companyName") or experiences[0].get("company", "")
 
     # Formations
-    educations = pc.get("education", []) or []
+    educations = a.get("educations") or a.get("education") or []
     formation_parts = []
     for edu in educations[:2]:
-        degree = edu.get("degree_name") or ""
-        field = edu.get("field_of_study") or ""
-        school = edu.get("school") or ""
+        degree = edu.get("degree") or edu.get("degreeName") or ""
+        field = edu.get("fieldOfStudy") or edu.get("field") or ""
+        school = edu.get("schoolName") or edu.get("school") or ""
         piece = " ".join(p for p in [degree, field, school] if p).strip()
         if piece:
             formation_parts.append(piece)
     formation = " · ".join(formation_parts)
 
     # Compétences
-    competences = (pc.get("skills") or [])[:8]
+    skills = a.get("skills") or []
+    competences = []
+    for s in skills[:8]:
+        if isinstance(s, dict):
+            competences.append(s.get("title") or s.get("name", ""))
+        else:
+            competences.append(str(s))
+    competences = [c for c in competences if c]
+
     if not competences:
-        # Fallback : déduire des titres de poste récents
-        competences = [e.get("title", "") for e in experiences[:5] if e.get("title")]
+        competences = [e.get("title") or e.get("position", "") for e in experiences[:5]]
+        competences = [c for c in competences if c]
 
-    # Secteur — approximation depuis l'industrie de l'entreprise actuelle ou headline
-    headline = pc.get("headline") or ""
-    secteur = pc.get("industry") or current_company or ""
+    headline = a.get("headline") or ""
+    secteur = a.get("industryName") or a.get("industry") or current_company or headline
 
-    location_parts = [pc.get("city"), pc.get("country_full_name") or pc.get("country")]
-    localisation = ", ".join(p for p in location_parts if p)
+    localisation = a.get("addressWithCountry") or a.get("location") or a.get("geoLocationName") or ""
 
-    resume = pc.get("summary") or headline
+    resume = a.get("about") or a.get("summary") or headline
 
     return {
         "nom": full_name,
         "poste_actuel": current_poste,
-        "annees_experience": min(total_years, 50),
+        "annees_experience": min(int(total_years), 50),
         "secteur": secteur,
-        "competences": [c for c in competences if c],
+        "competences": competences,
         "formation": formation,
         "entreprise_actuelle": current_company,
         "localisation": localisation,
@@ -264,14 +280,14 @@ def map_proxycurl_to_profile(pc: Dict[str, Any]) -> Dict[str, Any]:
 
 def extract_linkedin_profile(url: str, api_key: str) -> Dict[str, Any]:
     """
-    Pipeline : Proxycurl (si clé dispo) → scraping direct → Claude.
+    Pipeline : Apify (si token dispo) → scraping direct → Claude.
     """
-    # 1. Essai via Proxycurl (marche depuis n'importe quelle IP)
-    if PROXYCURL_API_KEY:
-        pc_data = fetch_via_proxycurl(url)
-        if "error" not in pc_data:
-            return map_proxycurl_to_profile(pc_data)
-        # Si Proxycurl échoue, on continue avec le fallback
+    # 1. Essai via Apify (marche depuis n'importe quelle IP)
+    if APIFY_API_TOKEN:
+        apify_data = fetch_via_apify(url)
+        if "error" not in apify_data:
+            return map_apify_to_profile(apify_data)
+        # Si Apify échoue, on continue avec le fallback
 
     # 2. Fallback : scraping direct (ne marche pas sur IP datacenter)
     html, status = fetch_linkedin_page(url)
