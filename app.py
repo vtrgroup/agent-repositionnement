@@ -51,7 +51,7 @@ h1, h2, h3, h4, h5 {
 
 /* Hero */
 .hero {
-    padding:56px 0 16px; text-align:center !important;
+    padding:32px 0 12px; text-align:center !important;
     position:relative;
 }
 .hero::before {
@@ -84,14 +84,14 @@ h1, h2, h3, h4, h5 {
     letter-spacing:.8px; text-transform:uppercase; margin-bottom:24px;
 }
 .hero h1 {
-    font-size:54px !important; font-weight:900 !important; line-height:1.1 !important;
-    letter-spacing:-2.5px !important; color:#0f172a !important; margin:0 0 20px !important;
+    font-size:46px !important; font-weight:900 !important; line-height:1.08 !important;
+    letter-spacing:-2px !important; color:#0f172a !important; margin:0 0 16px !important;
 }
 .hero h1 span { color:#5b5bd6 !important; }
 .hero-sub {
-    font-size:17px; color:#64748b; line-height:1.7;
-    max-width:480px; margin-left:auto !important; margin-right:auto !important;
-    margin-bottom:12px; font-weight:400; display:block;
+    font-size:16px; color:#64748b; line-height:1.6;
+    max-width:460px; margin-left:auto !important; margin-right:auto !important;
+    margin-bottom:8px; font-weight:400; display:block;
 }
 
 /* Input URL dans hero */
@@ -428,7 +428,7 @@ if st.session_state.phase == "landing":
 
     st.markdown("""
     <div class="hero">
-        <div style="display:block;margin-bottom:18px;">
+        <div style="display:block;margin-bottom:16px;">
             <div class="social-proof">
                 <div class="avatar-stack">
                     <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces" alt="">
@@ -439,9 +439,6 @@ if st.session_state.phase == "landing":
                 </div>
                 <span class="social-proof-text"><strong>+200</strong> professionnels ont trouvé leur rôle IA</span>
             </div>
-        </div>
-        <div style="display:block;">
-            <div class="hero-eyebrow">Bilan professionnel gratuit</div>
         </div>
         <h1>Votre place dans<br>l'économie <span>IA</span></h1>
         <p class="hero-sub">
