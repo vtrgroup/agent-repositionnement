@@ -589,7 +589,7 @@ elif st.session_state.phase == "analyzing":
     intro_prompt = f"""Profil de {profile.nom} : {profile.annees_experience} ans en tant que {profile.poste_actuel} dans le {profile.secteur}. Objectif : {profile.objectif_reconversion}.
 Écris un message d'accueil personnalisé et chaleureux (3 phrases) : reconnais son parcours, montre de l'enthousiasme pour sa démarche, annonce que l'analyse est en cours."""
 
-    with st.chat_message("assistant", avatar="✦"):
+    with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         full = ""
         with client.messages.stream(
