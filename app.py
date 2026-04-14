@@ -27,8 +27,8 @@ st.markdown("""
 [data-testid="collapsedControl"] { display:none !important; }
 [data-testid="stSidebar"] { display:none !important; }
 .block-container {
-    max-width:920px !important;
-    padding:0 40px 80px !important;
+    max-width:1120px !important;
+    padding:0 48px 80px !important;
     margin:0 auto !important;
 }
 [data-testid="stAppViewContainer"] { background:#fff; }
