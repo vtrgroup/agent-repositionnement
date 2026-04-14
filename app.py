@@ -50,20 +50,22 @@ h1, h2, h3, h4, h5 {
 .nav-right { font-size:13px; color:#94a3b8; }
 
 /* Hero */
-.hero { padding:72px 0 56px; text-align:center; }
+.hero { padding:72px 0 56px; text-align:center !important; }
+.hero * { text-align:center !important; }
 .hero-eyebrow {
     display:inline-block; background:#f0eeff; color:#5b5bd6;
     border-radius:100px; padding:5px 14px; font-size:11px; font-weight:700;
     letter-spacing:.8px; text-transform:uppercase; margin-bottom:24px;
 }
 .hero h1 {
-    font-size:54px; font-weight:900; line-height:1.1; letter-spacing:-2.5px;
-    color:#0f172a; margin:0 0 20px;
+    font-size:54px !important; font-weight:900 !important; line-height:1.1 !important;
+    letter-spacing:-2.5px !important; color:#0f172a !important; margin:0 0 20px !important;
 }
-.hero h1 span { color:#5b5bd6; }
+.hero h1 span { color:#5b5bd6 !important; }
 .hero-sub {
     font-size:17px; color:#64748b; line-height:1.75;
-    max-width:480px; margin:0 auto 40px; font-weight:400;
+    max-width:480px; margin-left:auto !important; margin-right:auto !important;
+    margin-bottom:40px; font-weight:400; display:block;
 }
 
 /* Input URL dans hero */
