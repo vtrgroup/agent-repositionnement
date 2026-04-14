@@ -20,9 +20,8 @@ st.set_page_config(
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 /* Reset Streamlit chrome */
 #MainMenu, footer, header { visibility:hidden !important; }
 [data-testid="collapsedControl"] { display:none !important; }
