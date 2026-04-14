@@ -492,7 +492,7 @@ elif st.session_state.phase == "url_input":
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "manual_input":
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
-    st.markdown("<br>")
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("#### Saisissez votre profil")
 
     with st.form("manual_form"):
@@ -528,7 +528,7 @@ elif st.session_state.phase == "confirming":
     data = st.session_state.linkedin_data
 
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
-    st.markdown("<br>")
+    st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="li-card">
@@ -580,7 +580,7 @@ elif st.session_state.phase == "analyzing":
     profile = st.session_state.profile
 
     st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
-    st.markdown("<br>")
+    st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(f"**Analyse de {profile.nom} en cours...**")
     st.caption("Claude Opus examine votre parcours et croise vos compétences avec les opportunités IA.")
