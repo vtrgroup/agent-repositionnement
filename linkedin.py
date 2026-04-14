@@ -287,7 +287,8 @@ def extract_linkedin_profile(url: str, api_key: str) -> Dict[str, Any]:
         apify_data = fetch_via_apify(url)
         if "error" not in apify_data:
             return map_apify_to_profile(apify_data)
-        # Si Apify échoue, on continue avec le fallback
+        # Apify a échoué → remonter l'erreur au lieu de tomber dans le scraping direct
+        return {"error": f"Apify : {apify_data.get('error', 'unknown')}"}
 
     # 2. Fallback : scraping direct (ne marche pas sur IP datacenter)
     html, status = fetch_linkedin_page(url)
