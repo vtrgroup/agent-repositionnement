@@ -1,13 +1,14 @@
-"""Interface web Streamlit — Agent de Repositionnement IA (entrée LinkedIn)."""
+"""Interface web Streamlit — Agent de Repositionnement IA."""
 
 import json
+import re
 import streamlit as st
 import anthropic
 
 from config import MODEL, SYSTEM_PROMPT, ANTHROPIC_API_KEY, AI_ROLES
 from agent import UserProfile, AnalysisResult, build_profile_dict
 from database import save_profile, init_database, get_profile
-from linkedin import extract_linkedin_profile, extract_from_text, validate_linkedin_url
+from linkedin import extract_linkedin_profile, validate_linkedin_url
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -17,134 +18,166 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-/* ── Global — fond blanc, texte ardoise ── */
-[data-testid="stAppViewContainer"] { background:#fafafa; }
-[data-testid="stSidebar"]          { background:#f1f5f9; }
-body, h1,h2,h3,h4,p,li,label,div  { color:#1e293b; font-family:'Inter',sans-serif; }
+/* Reset Streamlit chrome */
+#MainMenu, footer, header { visibility:hidden !important; }
+[data-testid="collapsedControl"] { display:none !important; }
+[data-testid="stSidebar"] { display:none !important; }
+.block-container { padding:0 !important; max-width:100% !important; }
+[data-testid="stAppViewContainer"] { background:#fff; }
+* { font-family:'Inter',sans-serif !important; box-sizing:border-box; }
 
-/* ── Navbar fine ── */
-.navbar {
+/* Wrapper centré */
+.page { max-width:920px; margin:0 auto; padding:0 40px 80px; }
+
+/* Nav */
+.nav {
     display:flex; align-items:center; justify-content:space-between;
-    padding:18px 0 24px; margin-bottom:0;
+    padding:24px 0 20px; border-bottom:1px solid #f1f5f9; margin-bottom:0;
 }
-.navbar-brand { font-size:17px; font-weight:700; color:#1e293b; }
-.navbar-sub   { font-size:13px; color:#94a3b8; font-weight:400; }
+.nav-logo { font-size:15px; font-weight:700; color:#0f172a; letter-spacing:-.2px; }
+.nav-right { font-size:13px; color:#94a3b8; }
 
-/* ── Hero ── */
-.hero {
-    padding:72px 24px 64px; text-align:center; max-width:720px; margin:0 auto;
-}
+/* Hero */
+.hero { padding:72px 0 56px; text-align:center; }
 .hero-eyebrow {
-    display:inline-block; background:#ede9fe; color:#7c3aed;
-    border-radius:100px; padding:5px 16px; font-size:12px; font-weight:600;
-    letter-spacing:.4px; margin-bottom:24px; text-transform:uppercase;
+    display:inline-block; background:#f0eeff; color:#5b5bd6;
+    border-radius:100px; padding:5px 14px; font-size:11px; font-weight:700;
+    letter-spacing:.8px; text-transform:uppercase; margin-bottom:24px;
 }
 .hero h1 {
-    font-size:clamp(32px,4.5vw,52px); font-weight:800; line-height:1.15;
-    color:#0f172a; margin:0 0 20px; letter-spacing:-1px;
+    font-size:54px; font-weight:900; line-height:1.1; letter-spacing:-2.5px;
+    color:#0f172a; margin:0 0 20px;
 }
-.hero h1 em { font-style:normal; color:#7c3aed; }
+.hero h1 span { color:#5b5bd6; }
 .hero-sub {
-    font-size:17px; color:#475569; max-width:520px;
-    margin:0 auto 36px; line-height:1.75;
-}
-.hero-note { font-size:13px; color:#94a3b8; margin-top:12px; }
-
-/* ── Features — 3 colonnes légères ── */
-.features { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:52px 0; }
-.feat {
-    background:#fff; border:1px solid #e2e8f0;
-    border-radius:14px; padding:24px 20px;
-    transition:box-shadow .2s;
-}
-.feat:hover { box-shadow:0 4px 20px rgba(0,0,0,.06); }
-.feat-icon  { font-size:24px; margin-bottom:12px; }
-.feat-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:6px; }
-.feat-desc  { font-size:13px; color:#64748b; line-height:1.65; }
-
-/* ── Steps ── */
-.steps-wrap { max-width:680px; margin:0 auto 52px; }
-.step-row {
-    display:flex; align-items:flex-start; gap:20px; margin-bottom:28px;
-}
-.step-dot {
-    flex-shrink:0; width:32px; height:32px; border-radius:50%;
-    background:#7c3aed; color:#fff; font-weight:700; font-size:14px;
-    display:flex; align-items:center; justify-content:center; margin-top:2px;
-}
-.step-body {}
-.step-title2 { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:3px; }
-.step-desc   { font-size:14px; color:#64748b; line-height:1.6; }
-
-/* ── Rôles pills ── */
-.roles-grid { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:24px 0 52px; }
-.role-pill {
-    background:#f5f3ff; border:1px solid #ddd6fe;
-    color:#6d28d9; border-radius:100px; padding:7px 16px; font-size:13px; font-weight:500;
+    font-size:17px; color:#64748b; line-height:1.75;
+    max-width:480px; margin:0 auto 40px; font-weight:400;
 }
 
-/* ── Section title ── */
-.section-title {
-    text-align:center; font-size:24px; font-weight:800;
-    color:#0f172a; margin-bottom:8px; letter-spacing:-.5px;
+/* Input URL dans hero */
+.hero-note { font-size:12px; color:#94a3b8; margin-top:10px; text-align:center; }
+
+/* Séparateur */
+.sep { border:none; border-top:1px solid #f1f5f9; margin:60px 0; }
+
+/* Features */
+.feats { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.feat-card {
+    padding:28px 22px; border:1px solid #f1f5f9;
+    border-radius:16px; background:#fafafa;
 }
-.section-sub { text-align:center; font-size:15px; color:#64748b; margin-bottom:32px; }
+.feat-icon { font-size:22px; margin-bottom:14px; display:block; }
+.feat-t { font-size:14px; font-weight:700; color:#0f172a; margin-bottom:8px; }
+.feat-d { font-size:13px; color:#64748b; line-height:1.7; }
 
-/* ── Divider doux ── */
-.soft-divider { border:none; border-top:1px solid #f1f5f9; margin:48px 0; }
-
-/* ── Bottom CTA ── */
-.bottom-cta {
-    background:#f5f3ff; border:1px solid #ddd6fe;
-    border-radius:20px; padding:52px 40px; text-align:center; margin-bottom:32px;
+/* Section header */
+.s-label {
+    font-size:11px; font-weight:700; letter-spacing:1.2px;
+    color:#94a3b8; text-transform:uppercase; margin-bottom:10px;
 }
-.bottom-cta h2 { font-size:28px; font-weight:800; color:#0f172a; margin-bottom:10px; }
-.bottom-cta p  { color:#64748b; font-size:15px; margin-bottom:28px; }
+.s-title {
+    font-size:30px; font-weight:800; letter-spacing:-1px;
+    color:#0f172a; margin-bottom:10px; line-height:1.2;
+}
+.s-sub { font-size:15px; color:#64748b; line-height:1.65; }
 
-/* ── Results ── */
-.score-wrap { text-align:center; padding:28px 20px; border-radius:16px; color:white; }
-.score-num  { font-size:80px; font-weight:800; line-height:1; }
-.score-lbl  { font-size:15px; opacity:.9; margin-top:6px; }
+/* Steps */
+.steps { display:flex; flex-direction:column; }
+.step-li {
+    display:flex; gap:18px; padding:18px 0;
+    border-bottom:1px solid #f8f8f8;
+}
+.step-li:last-child { border-bottom:none; }
+.s-num {
+    flex-shrink:0; width:26px; height:26px; border-radius:50%;
+    background:#5b5bd6; color:#fff; font-size:12px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; margin-top:3px;
+}
+.s-t { font-size:14px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+.s-d { font-size:13px; color:#64748b; line-height:1.65; }
+
+/* Roles */
+.roles-wrap { display:flex; flex-wrap:wrap; gap:8px; padding-top:8px; }
+.r-pill {
+    background:#f5f3ff; color:#5b5bd6; border:1px solid #ddd6fe;
+    border-radius:100px; padding:6px 15px; font-size:12.5px; font-weight:500;
+}
+
+/* CTA band */
+.cta-band {
+    background:#5b5bd6; border-radius:20px;
+    padding:60px 48px; text-align:center; margin:60px 0 0;
+}
+.cta-band h2 {
+    font-size:30px; font-weight:800; color:#fff;
+    margin-bottom:10px; letter-spacing:-.5px;
+}
+.cta-band p { font-size:15px; color:rgba(255,255,255,.7); margin-bottom:0; }
+
+/* Boutons Streamlit — violet cohérent */
+.stButton > button {
+    background:#5b5bd6 !important; color:#fff !important;
+    border:none !important; border-radius:10px !important;
+    font-weight:600 !important; font-size:14px !important;
+    padding:11px 24px !important; letter-spacing:-.1px !important;
+    transition:opacity .15s !important; box-shadow:none !important;
+}
+.stButton > button:hover { opacity:.85 !important; background:#5b5bd6 !important; }
+.stButton > button:focus { box-shadow:none !important; outline:none !important; }
+
+/* Bouton CTA band (blanc) */
+.cta-btn .stButton > button {
+    background:#fff !important; color:#5b5bd6 !important;
+    font-size:15px !important; padding:13px 32px !important;
+}
+
+/* Results */
+.score-wrap { text-align:center; padding:28px 20px; border-radius:16px; color:#fff; }
+.score-num  { font-size:76px; font-weight:900; line-height:1; letter-spacing:-2px; }
+.score-lbl  { font-size:13px; opacity:.85; margin-top:8px; }
 .role-badge {
-    background:#f5f3ff; border:2px solid #7c3aed;
+    background:#f5f3ff; border:2px solid #5b5bd6;
     border-radius:12px; padding:14px 20px;
-    font-size:19px; font-weight:700; color:#5b21b6; text-align:center;
+    font-size:18px; font-weight:700; color:#4c4cbe; text-align:center;
 }
-.step {
-    background:#f8fafc; border-left:3px solid #7c3aed;
+.res-step {
+    background:#fafafa; border-left:3px solid #5b5bd6;
     border-radius:0 8px 8px 0; padding:12px 16px; margin-bottom:10px;
 }
-.step-title { font-weight:700; color:#0f172a; }
-.step-meta  { color:#64748b; font-size:13px; margin-top:3px; }
+.res-step-t { font-weight:700; color:#0f172a; font-size:13.5px; }
+.res-step-m { color:#64748b; font-size:12px; margin-top:3px; }
 .tag     { display:inline-block; background:#ede9fe; color:#5b21b6;
-           border-radius:20px; padding:4px 12px; margin:3px; font-size:13px; }
+           border-radius:20px; padding:4px 12px; margin:3px; font-size:12.5px; }
 .tag-red { background:#fef2f2; color:#b91c1c; }
 .li-card {
-    background:#f0f9ff; border:1px solid #bae6fd;
+    background:#fafafa; border:1px solid #e2e8f0;
     border-radius:12px; padding:18px 22px; margin-bottom:12px;
 }
 .li-name  { font-size:20px; font-weight:700; color:#0f172a; }
-.li-title { font-size:14px; color:#0369a1; margin-top:3px; }
+.li-title { font-size:14px; color:#5b5bd6; margin-top:3px; }
 .li-meta  { font-size:13px; color:#64748b; margin-top:6px; }
-.saved { background:#f0fdf4; border:1px solid #bbf7d0;
-         border-radius:10px; padding:12px 18px; color:#166534; font-weight:600; }
+.saved-bar {
+    background:#f0fdf4; border:1px solid #bbf7d0;
+    border-radius:10px; padding:12px 18px; color:#166534; font-weight:600;
+    font-size:14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 def init_state():
     defaults = {
-        "phase": "landing",        # landing → url_input → confirming → analyzing → done
-        "linkedin_data": None,     # dict brut extrait de LinkedIn
-        "profile": None,           # UserProfile validé
-        "result": None,            # AnalysisResult
+        "phase": "landing",
+        "linkedin_data": None,
+        "profile": None,
+        "result": None,
         "profile_id": None,
-        "messages": [],            # historique chat UI
-        "api_history": [],         # historique API Claude
-        "api_key": ANTHROPIC_API_KEY,
-        "linkedin_url": "",
+        "api_history": [],
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -152,42 +185,17 @@ def init_state():
 
 init_state()
 
-# ── Client ────────────────────────────────────────────────────────────────────
-def get_client() -> anthropic.Anthropic:
-    key = ANTHROPIC_API_KEY
-    if not key:
-        st.error("⚠️ Clé API Anthropic manquante — ajoutez `ANTHROPIC_API_KEY=sk-ant-...` dans le fichier `.env` du projet.")
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def get_client():
+    if not ANTHROPIC_API_KEY:
+        st.error("Clé API Anthropic manquante — ajoutez ANTHROPIC_API_KEY dans les secrets Streamlit.")
         st.stop()
-    return anthropic.Anthropic(api_key=key)
-
-# ── LLM helpers ───────────────────────────────────────────────────────────────
-def stream_chat(prompt: str, max_tokens: int = 1024) -> str:
-    """Appelle l'API en streaming et affiche dans le chat."""
-    client = get_client()
-    st.session_state.api_history.append({"role": "user", "content": prompt})
-    full = ""
-    with st.chat_message("assistant", avatar="🤖"):
-        placeholder = st.empty()
-        with client.messages.stream(
-            model=MODEL,
-            max_tokens=max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=st.session_state.api_history,
-            thinking={"type": "adaptive"},
-        ) as stream:
-            for chunk in stream.text_stream:
-                full += chunk
-                placeholder.markdown(full + "▌")
-        placeholder.markdown(full)
-    st.session_state.messages.append({"role": "assistant", "content": full})
-    st.session_state.api_history.append({"role": "assistant", "content": full})
-    return full
-
+    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def run_analysis(profile: UserProfile) -> AnalysisResult:
     client = get_client()
     roles_list = "\n".join(f"- {r}" for r in AI_ROLES)
-    prompt = f"""Analyse ce profil professionnel et retourne UNIQUEMENT un JSON valide.
+    prompt = f"""Analyse ce profil et retourne UNIQUEMENT un JSON valide.
 
 PROFIL :
 - Nom : {profile.nom}
@@ -198,461 +206,394 @@ PROFIL :
 - Formation : {profile.formation}
 - Objectif : {profile.objectif_reconversion}
 
-RÔLES IA DISPONIBLES :
+RÔLES IA :
 {roles_list}
 
-FORMAT JSON ATTENDU :
+JSON :
 {{
   "role_cible": "rôle parmi la liste",
   "score": entier_0_100,
-  "score_justification": "2 phrases expliquant le score",
+  "score_justification": "2 phrases",
   "competences_transferables": ["c1","c2","c3"],
   "competences_a_acquerir": ["c1","c2","c3"],
   "plan_formation": [
-    {{"etape":"1. Titre","duree":"X semaines","ressources":"Plateforme / cours"}},
-    {{"etape":"2. Titre","duree":"X semaines","ressources":"Plateforme / cours"}},
-    {{"etape":"3. Titre","duree":"X mois","ressources":"Plateforme / cours"}},
-    {{"etape":"4. Titre","duree":"X mois","ressources":"Plateforme / cours"}}
+    {{"etape":"1. Titre","duree":"X semaines","ressources":"Plateforme"}},
+    {{"etape":"2. Titre","duree":"X semaines","ressources":"Plateforme"}},
+    {{"etape":"3. Titre","duree":"X mois","ressources":"Plateforme"}},
+    {{"etape":"4. Titre","duree":"X mois","ressources":"Plateforme"}}
   ],
-  "salaire_estime": "fourchette salariale en France",
-  "perspectives": "évolutions possibles en 2-3 phrases",
-  "message_encouragement": "message motivant personnalisé 2-3 phrases"
-}}
-UNIQUEMENT le JSON."""
-
+  "salaire_estime": "fourchette en France",
+  "perspectives": "2-3 phrases",
+  "message_encouragement": "2-3 phrases personnalisées"
+}}"""
     resp = client.messages.create(
-        model=MODEL,
-        max_tokens=2048,
+        model=MODEL, max_tokens=2048,
         system="Tu es expert RH et formation IA. Retourne uniquement du JSON valide.",
         messages=[{"role": "user", "content": prompt}],
         thinking={"type": "adaptive"},
     )
-    import re
     raw = resp.content[-1].text.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw).strip()
     return AnalysisResult(**json.loads(raw))
 
-# ── Render résultats ──────────────────────────────────────────────────────────
 def render_results(profile: UserProfile, result: AnalysisResult, profile_id: str):
-    st.divider()
-    st.markdown("## 📊 Résultats de votre analyse de repositionnement")
+    st.markdown("---")
+    st.markdown("### Résultats de votre analyse")
 
-    # Score color
-    if result.score >= 70:
-        grad = "linear-gradient(135deg,#22c55e,#16a34a)"
-    elif result.score >= 40:
-        grad = "linear-gradient(135deg,#f59e0b,#d97706)"
-    else:
-        grad = "linear-gradient(135deg,#ef4444,#dc2626)"
+    score = result.score
+    grad = ("#22c55e,#16a34a") if score >= 70 else ("#f59e0b,#d97706") if score >= 40 else ("#ef4444,#dc2626")
 
     col1, col2 = st.columns([1, 2])
-
     with col1:
         st.markdown(f"""
-        <div class="score-wrap" style="background:{grad};">
-            <div class="score-num">{result.score}</div>
+        <div class="score-wrap" style="background:linear-gradient(135deg,{grad});">
+            <div class="score-num">{score}</div>
             <div class="score-lbl">Score de compatibilité / 100</div>
         </div>""", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f'<div class="role-badge">🎯 {result.role_cible}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="role-badge">→ {result.role_cible}</div>', unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        st.info(result.score_justification)
-        st.success(f"💰 **Salaire estimé :** {result.salaire_estime}")
-
+        st.caption(result.score_justification)
+        st.success(f"Salaire estimé : {result.salaire_estime}")
     with col2:
-        st.markdown("#### ✅ Compétences transférables")
-        st.markdown(
-            " ".join(f'<span class="tag">{c}</span>' for c in result.competences_transferables),
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("#### 📚 Compétences à acquérir")
-        st.markdown(
-            " ".join(f'<span class="tag tag-red">{c}</span>' for c in result.competences_a_acquerir),
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("#### 🗺️ Plan de formation personnalisé")
+        st.markdown("**Compétences transférables**")
+        st.markdown(" ".join(f'<span class="tag">{c}</span>' for c in result.competences_transferables), unsafe_allow_html=True)
+        st.markdown("<br>**À acquérir**", unsafe_allow_html=True)
+        st.markdown(" ".join(f'<span class="tag tag-red">{c}</span>' for c in result.competences_a_acquerir), unsafe_allow_html=True)
+        st.markdown("<br>**Plan de formation**", unsafe_allow_html=True)
         for step in result.plan_formation:
             st.markdown(f"""
-            <div class="step">
-                <div class="step-title">{step['etape']}</div>
-                <div class="step-meta">⏱ {step['duree']} &nbsp;|&nbsp; 📖 {step['ressources']}</div>
+            <div class="res-step">
+                <div class="res-step-t">{step['etape']}</div>
+                <div class="res-step-m">{step['duree']} &nbsp;·&nbsp; {step['ressources']}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown("#### 🚀 Perspectives de carrière")
-    st.markdown(result.perspectives)
-
+    st.markdown(f"**Perspectives** — {result.perspectives}")
     st.markdown(f"""
-    <div style="background:#fef9c3;border:1px solid #fcd34d;border-radius:10px;padding:14px 18px;margin-top:12px;">
-        💬 <em>{result.message_encouragement}</em>
+    <div style="background:#f5f3ff;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:14px;color:#4c4cbe;font-style:italic;">
+        {result.message_encouragement}
     </div>""", unsafe_allow_html=True)
-
+    st.markdown(f'<div class="saved-bar">Profil sauvegardé — ID : {profile_id}</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="saved">✅ Profil sauvegardé — ID : <code>{profile_id}</code> &nbsp;|&nbsp; <code>data/profiles.json</code></div>',
-        unsafe_allow_html=True,
-    )
-
-    with st.expander("🗂 Données JSON complètes"):
-        st.json(get_profile(profile_id))
-
-    if st.button("🔄 Analyser un autre profil", use_container_width=True):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    if st.session_state.phase != "landing":
-        st.markdown("## 🎯 Rôles IA disponibles")
-        for role in AI_ROLES:
-            st.markdown(f"- {role}")
-        st.divider()
-    if st.button("🔄 Recommencer", use_container_width=True):
+    if st.button("Analyser un autre profil →"):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
-# LANDING PAGE
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# LANDING
+# ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.phase == "landing":
 
-    # Navbar
+    st.markdown('<div class="page">', unsafe_allow_html=True)
+
     st.markdown("""
-    <div class="navbar">
-        <span class="navbar-brand">✦ &nbsp;Repositionnement IA</span>
-        <span class="navbar-sub">Propulsé par Claude Opus 4.6</span>
+    <div class="nav">
+        <span class="nav-logo">✦ &nbsp;Repositionnement IA</span>
+        <span class="nav-right">Propulsé par Claude Opus 4.6</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Hero
     st.markdown("""
     <div class="hero">
         <div class="hero-eyebrow">Bilan professionnel gratuit</div>
-        <h1>Et si l'IA était<br><em>votre</em> prochaine étape ?</h1>
+        <h1>Votre place dans<br>l'économie <span>IA</span></h1>
         <p class="hero-sub">
-            Collez votre profil LinkedIn. En moins d'une minute, découvrez le rôle IA
-            qui correspond à votre parcours, et le chemin concret pour y accéder.
+            Collez votre URL LinkedIn. En 60 secondes, découvrez le rôle IA
+            fait pour vous et le chemin concret pour y accéder.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    col_l, col_c, col_r = st.columns([1.2, 2, 1.2])
+    # URL input directement dans le hero
+    _, col_c, _ = st.columns([1, 3, 1])
     with col_c:
-        if st.button("Découvrir mon rôle dans l'IA →", type="primary", use_container_width=True):
-            st.session_state.phase = "url_input"
-            st.rerun()
+        url = st.text_input("url", placeholder="https://www.linkedin.com/in/votre-profil",
+                            label_visibility="collapsed")
+        go = st.button("Analyser mon profil →", type="primary", use_container_width=True)
         st.markdown(
-            "<p class='hero-note' style='text-align:center;'>Gratuit · Aucune inscription · 60 secondes</p>",
+            "<p class='hero-note'>Gratuit &nbsp;·&nbsp; Sans inscription &nbsp;·&nbsp; Profil LinkedIn public requis</p>",
             unsafe_allow_html=True,
         )
 
-    st.markdown("<hr class='soft-divider'>", unsafe_allow_html=True)
+    if go:
+        if not url.strip():
+            st.error("Collez votre URL LinkedIn.")
+        elif not validate_linkedin_url(url.strip()):
+            st.error("URL invalide — format attendu : https://www.linkedin.com/in/votre-profil")
+        elif not ANTHROPIC_API_KEY:
+            st.error("Clé API manquante.")
+        else:
+            st.session_state.linkedin_url = url.strip()
+            with st.status("Récupération du profil...", expanded=False) as s:
+                data = extract_linkedin_profile(url.strip(), ANTHROPIC_API_KEY)
+            if data.get("error") == "login_required":
+                st.warning("Profil non accessible — rendez-le public ou saisissez vos infos manuellement.")
+                st.session_state.phase = "manual_input"
+                st.rerun()
+            elif "error" in data:
+                st.error(data["error"])
+            else:
+                s.update(label=f"Profil récupéré ✓", state="complete")
+                st.session_state.linkedin_data = data
+                st.session_state.phase = "confirming"
+                st.rerun()
+
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
     # Features
     st.markdown("""
-    <div class="features">
-        <div class="feat">
-            <div class="feat-icon">🔍</div>
-            <div class="feat-title">Votre meilleur match IA</div>
-            <div class="feat-desc">L'agent analyse vos compétences actuelles et les croise avec les rôles IA les plus accessibles depuis votre profil.</div>
+    <div class="feats">
+        <div class="feat-card">
+            <span class="feat-icon">→</span>
+            <div class="feat-t">Le rôle IA le plus accessible</div>
+            <div class="feat-d">L'agent croise votre parcours avec les 10 métiers IA les plus demandés pour trouver votre meilleur point d'entrée.</div>
         </div>
-        <div class="feat">
-            <div class="feat-icon">🗺️</div>
-            <div class="feat-title">Un plan, pas des conseils</div>
-            <div class="feat-desc">4 étapes concrètes avec des durées réalistes et des ressources précises. Pas de vague orientation — un vrai chemin.</div>
+        <div class="feat-card">
+            <span class="feat-icon">→</span>
+            <div class="feat-t">Un plan en 4 étapes</div>
+            <div class="feat-d">Durées, plateformes, ressources précises. Pas d'orientation vague — un chemin concret adapté à votre profil actuel.</div>
         </div>
-        <div class="feat">
-            <div class="feat-icon">💬</div>
-            <div class="feat-title">Personnalisé pour vous</div>
-            <div class="feat-desc">Chaque analyse est générée en temps réel par Claude Opus, en tenant compte de votre secteur, vos années d'expérience et votre objectif.</div>
+        <div class="feat-card">
+            <span class="feat-icon">→</span>
+            <div class="feat-t">Généré en temps réel</div>
+            <div class="feat-d">Chaque analyse est produite à la volée par Claude Opus 4.6, le modèle de raisonnement avancé d'Anthropic.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<hr class='soft-divider'>", unsafe_allow_html=True)
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
     # Comment ça marche
-    st.markdown('<p class="section-title">Comment ça marche ?</p>', unsafe_allow_html=True)
-    st.markdown('<p class="section-sub">Trois étapes, pas une de plus.</p>', unsafe_allow_html=True)
-
-    col_steps, _ = st.columns([2, 1])
-    with col_steps:
+    col_l, col_r = st.columns([1, 1])
+    with col_l:
         st.markdown("""
-        <div class="steps-wrap">
-            <div class="step-row">
-                <div class="step-dot">1</div>
-                <div class="step-body">
-                    <div class="step-title2">Partagez votre URL LinkedIn</div>
-                    <div class="step-desc">L'agent récupère automatiquement votre profil public — pas besoin de remplir un formulaire.</div>
+        <div class="s-label">Fonctionnement</div>
+        <div class="s-title">Trois étapes,<br>pas une de plus</div>
+        <div class="s-sub">Votre LinkedIn fait la majorité du travail. Vous confirmez et précisez votre objectif — c'est tout.</div>
+        """, unsafe_allow_html=True)
+    with col_r:
+        st.markdown("""
+        <div class="steps">
+            <div class="step-li">
+                <div class="s-num">1</div>
+                <div>
+                    <div class="s-t">Partagez votre URL LinkedIn</div>
+                    <div class="s-d">L'agent récupère votre profil public automatiquement. Aucun formulaire.</div>
                 </div>
             </div>
-            <div class="step-row">
-                <div class="step-dot">2</div>
-                <div class="step-body">
-                    <div class="step-title2">Vérifiez vos informations</div>
-                    <div class="step-desc">Confirmez ce qui a été extrait et précisez ce que vous cherchez dans l'IA — une phrase suffit.</div>
+            <div class="step-li">
+                <div class="s-num">2</div>
+                <div>
+                    <div class="s-t">Confirmez et ajoutez votre objectif</div>
+                    <div class="s-d">Vérifiez les infos extraites, précisez ce que vous cherchez dans l'IA en une phrase.</div>
                 </div>
             </div>
-            <div class="step-row">
-                <div class="step-dot">3</div>
-                <div class="step-body">
-                    <div class="step-title2">Recevez votre analyse complète</div>
-                    <div class="step-desc">Rôle recommandé, score de compatibilité, compétences transférables et plan de formation détaillé.</div>
+            <div class="step-li">
+                <div class="s-num">3</div>
+                <div>
+                    <div class="s-t">Recevez votre analyse</div>
+                    <div class="s-d">Rôle recommandé, score de compatibilité, compétences transférables et plan de formation.</div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<hr class='soft-divider'>", unsafe_allow_html=True)
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
     # Rôles
-    st.markdown('<p class="section-title">Les rôles que nous analysons</p>', unsafe_allow_html=True)
-    st.markdown('<p class="section-sub">Parmi les métiers IA les plus accessibles aux profils non-tech.</p>', unsafe_allow_html=True)
-    roles_html = " ".join(f'<span class="role-pill">{r}</span>' for r in AI_ROLES)
-    st.markdown(f'<div class="roles-grid">{roles_html}</div>', unsafe_allow_html=True)
+    col_l2, col_r2 = st.columns([1, 2])
+    with col_l2:
+        st.markdown("""
+        <div class="s-label">Périmètre</div>
+        <div class="s-title">Les rôles<br>analysés</div>
+        <div class="s-sub">Les métiers IA les plus accessibles aux profils expérimentés sans bagage technique.</div>
+        """, unsafe_allow_html=True)
+    with col_r2:
+        pills = " ".join(f'<span class="r-pill">{r}</span>' for r in AI_ROLES)
+        st.markdown(f'<div class="roles-wrap" style="padding-top:12px;">{pills}</div>', unsafe_allow_html=True)
 
-    # Bottom CTA
+    # CTA band
     st.markdown("""
-    <div class="bottom-cta">
-        <h2>Prêt à voir où vous en êtes ?</h2>
-        <p>L'analyse prend moins d'une minute. Votre profil LinkedIn fait le travail.</p>
+    <div class="cta-band">
+        <h2>Prêt à savoir où vous en êtes ?</h2>
+        <p>L'analyse prend moins d'une minute.</p>
     </div>
     """, unsafe_allow_html=True)
-
-    col_l2, col_c2, col_r2 = st.columns([1.2, 2, 1.2])
-    with col_c2:
-        if st.button("Commencer l'analyse →", type="primary", use_container_width=True):
+    st.markdown("<br>", unsafe_allow_html=True)
+    _, col_cta, _ = st.columns([1, 2, 1])
+    with col_cta:
+        if st.button("Commencer maintenant →", type="primary", use_container_width=True):
             st.session_state.phase = "url_input"
             st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
-# PHASE 1 — Saisie de l'URL LinkedIn (scraping automatique)
-# ═══════════════════════════════════════════════════════════════
-if st.session_state.phase == "url_input":
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 1 — URL input (fallback si arrivée directe)
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.phase == "url_input":
+    st.markdown('<div class="page">', unsafe_allow_html=True)
     st.markdown("""
-    <div style="max-width:600px;margin:40px auto 8px;">
-        <p style="font-size:13px;color:#94a3b8;margin-bottom:8px;">Étape 1 sur 2</p>
-        <h2 style="font-size:26px;font-weight:800;color:#0f172a;margin:0 0 8px;">
-            Votre profil LinkedIn
-        </h2>
-        <p style="color:#64748b;font-size:15px;margin:0 0 28px;">
-            L'agent récupère automatiquement vos informations — pas de saisie manuelle.
-        </p>
+    <div class="nav">
+        <span class="nav-logo">✦ &nbsp;Repositionnement IA</span>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### Votre profil LinkedIn")
+    st.markdown("<p style='color:#64748b;font-size:14px;'>L'agent récupère vos informations automatiquement.</p>", unsafe_allow_html=True)
 
     col_in, col_btn = st.columns([4, 1])
     with col_in:
-        url = st.text_input(
-            "URL LinkedIn",
-            placeholder="https://www.linkedin.com/in/votre-profil",
-            label_visibility="collapsed",
-        )
+        url = st.text_input("URL", placeholder="https://www.linkedin.com/in/votre-profil", label_visibility="collapsed")
     with col_btn:
         go_btn = st.button("Analyser →", type="primary", use_container_width=True)
 
-    st.markdown(
-        "<p style='color:#94a3b8;font-size:13px;margin-top:6px;'>"
-        "Profil doit être public sur LinkedIn (Paramètres → Visibilité → Public)"
-        "</p>",
-        unsafe_allow_html=True,
-    )
-
+    st.caption("Le profil doit être public sur LinkedIn (Paramètres → Visibilité → Public)")
     st.markdown("<br>", unsafe_allow_html=True)
-    manual_btn = st.button("Saisir mes informations manuellement", use_container_width=False)
+    manual_btn = st.button("Saisir manuellement")
 
     if go_btn:
         if not url.strip():
-            st.error("Veuillez entrer une URL LinkedIn.")
+            st.error("Entrez une URL LinkedIn.")
         elif not validate_linkedin_url(url.strip()):
-            st.error("❌ URL invalide. Format attendu : https://www.linkedin.com/in/votre-profil")
+            st.error("URL invalide — format : https://www.linkedin.com/in/votre-profil")
         elif not ANTHROPIC_API_KEY:
-            st.error("⚠️ Clé API Anthropic manquante — ajoutez `ANTHROPIC_API_KEY=sk-ant-...` dans le fichier `.env`.")
+            st.error("Clé API manquante.")
         else:
-            st.session_state.linkedin_url = url.strip()
-
-            with st.status("🔍 Récupération du profil LinkedIn...", expanded=True) as status_box:
-                st.write("Connexion à LinkedIn...")
+            with st.status("Récupération...", expanded=False) as s:
                 data = extract_linkedin_profile(url.strip(), ANTHROPIC_API_KEY)
-
-                if data.get("error") == "login_required":
-                    status_box.update(label="⚠️ LinkedIn demande une connexion", state="error")
-                    st.warning(
-                        "LinkedIn protège ce profil et nécessite une authentification. "
-                        "Passez en saisie manuelle ou rendez votre profil public."
-                    )
-                    st.session_state.phase = "manual_input"
-                    st.rerun()
-                elif "error" in data:
-                    status_box.update(label="❌ Erreur d'extraction", state="error")
-                    st.error(data["error"])
-                else:
-                    st.write(f"✅ Profil de **{data.get('nom', '?')}** extrait avec succès !")
-                    status_box.update(label="✅ Profil récupéré !", state="complete")
-                    st.session_state.linkedin_data = data
-                    st.session_state.phase = "confirming"
-                    st.rerun()
+            if data.get("error") == "login_required":
+                st.warning("Profil non accessible. Rendez-le public ou saisissez manuellement.")
+                st.session_state.phase = "manual_input"
+                st.rerun()
+            elif "error" in data:
+                st.error(data["error"])
+            else:
+                s.update(label="Profil récupéré ✓", state="complete")
+                st.session_state.linkedin_data = data
+                st.session_state.phase = "confirming"
+                st.rerun()
 
     if manual_btn:
         st.session_state.phase = "manual_input"
         st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PHASE 1b — Saisie manuelle
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "manual_input":
-    st.markdown("### ✏️ Saisissez votre profil manuellement")
-    st.markdown("[← Retour à l'import LinkedIn](#)", help="Cliquez sur 'Recommencer' dans la barre latérale")
+    st.markdown('<div class="page">', unsafe_allow_html=True)
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
+    st.markdown("<br>")
+    st.markdown("#### Saisissez votre profil")
 
     with st.form("manual_form"):
         c1, c2 = st.columns(2)
-        nom = c1.text_input("Prénom Nom *")
-        poste = c2.text_input("Poste actuel *")
+        nom = c1.text_input("Prénom Nom")
+        poste = c2.text_input("Poste actuel")
         c3, c4 = st.columns(2)
-        secteur = c3.text_input("Secteur d'activité *")
-        exp = c4.number_input("Années d'expérience *", min_value=0, max_value=50, value=5)
-        competences = st.text_input(
-            "Compétences principales (séparées par des virgules) *",
-            placeholder="Ex : gestion de projet, data analysis, communication",
-        )
-        formation = st.text_input("Formation *", placeholder="Ex : Master Marketing, ESSEC")
-        objectif = st.text_area(
-            "Votre objectif avec l'IA *",
-            placeholder="Ex : Je veux rester dans mon secteur mais avec un rôle plus centré sur l'IA...",
-        )
-        submitted = st.form_submit_button("Analyser mon profil →", type="primary")
+        secteur = c3.text_input("Secteur d'activité")
+        exp = c4.number_input("Années d'expérience", min_value=0, max_value=50, value=5)
+        competences = st.text_input("Compétences (séparées par des virgules)", placeholder="Ex : gestion de projet, data analysis, communication")
+        formation = st.text_input("Formation", placeholder="Ex : Master Marketing, ESSEC")
+        objectif = st.text_area("Votre objectif avec l'IA", placeholder="Ex : Je veux évoluer vers un rôle de consultant IA dans mon secteur...")
+        submitted = st.form_submit_button("Continuer →", type="primary")
 
     if submitted:
         if not all([nom, poste, secteur, competences, formation, objectif]):
-            st.error("Veuillez remplir tous les champs obligatoires.")
+            st.error("Complétez tous les champs.")
         else:
             st.session_state.linkedin_data = {
-                "nom": nom,
-                "poste_actuel": poste,
-                "annees_experience": int(exp),
-                "secteur": secteur,
-                "competences": [c.strip() for c in competences.split(",") if c.strip()],
-                "formation": formation,
-                "objectif_reconversion": objectif,
-                "resume": "",
-                "entreprise_actuelle": "",
-                "localisation": "",
+                "nom": nom, "poste_actuel": poste, "annees_experience": int(exp),
+                "secteur": secteur, "competences": [c.strip() for c in competences.split(",") if c.strip()],
+                "formation": formation, "objectif_reconversion": objectif,
+                "resume": "", "entreprise_actuelle": "", "localisation": "",
             }
             st.session_state.phase = "confirming"
             st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
-# PHASE 2 — Confirmation du profil extrait
-# ═══════════════════════════════════════════════════════════════
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 2 — Confirmation
+# ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "confirming":
     data = st.session_state.linkedin_data
 
-    st.markdown("### ✅ Profil extrait — Vérifiez et complétez")
+    st.markdown('<div class="page">', unsafe_allow_html=True)
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
+    st.markdown("<br>")
+
     st.markdown(f"""
     <div class="li-card">
-        <div class="li-name">👤 {data.get('nom', 'N/A')}</div>
-        <div class="li-title">💼 {data.get('poste_actuel', 'N/A')} · {data.get('entreprise_actuelle', '')}</div>
-        <div class="li-meta">
-            🏢 {data.get('secteur', 'N/A')} &nbsp;|&nbsp;
-            📍 {data.get('localisation', '')} &nbsp;|&nbsp;
-            ⏳ {data.get('annees_experience', '?')} ans d'expérience
-        </div>
-        {"<div style='margin-top:10px;font-size:13px;color:#334155;'>" + data.get('resume','') + "</div>" if data.get('resume') else ""}
+        <div class="li-name">{data.get('nom', '—')}</div>
+        <div class="li-title">{data.get('poste_actuel', '') or ''}{' · ' + data.get('entreprise_actuelle','') if data.get('entreprise_actuelle') else ''}</div>
+        <div class="li-meta">{data.get('secteur', '')} {'· ' + data.get('localisation','') if data.get('localisation') else ''} {'· ' + str(data.get('annees_experience','')) + ' ans' if data.get('annees_experience') else ''}</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Signaler les champs obfusqués par LinkedIn
-    missing_fields = []
-    if not data.get("poste_actuel"):
-        missing_fields.append("poste actuel")
-    if not data.get("competences"):
-        missing_fields.append("compétences")
-    if not data.get("formation"):
-        missing_fields.append("formation")
+    missing = [f for f, k in [("poste actuel","poste_actuel"),("compétences","competences"),("formation","formation")] if not data.get(k)]
+    if missing:
+        st.info(f"LinkedIn masque certains champs — complétez : {', '.join(missing)}.")
 
-    if missing_fields:
-        st.warning(
-            f"⚠️ **LinkedIn masque certains champs pour les non-connectés** : "
-            f"{', '.join(missing_fields)}. "
-            f"Complétez-les ci-dessous pour obtenir une analyse précise."
-        )
-
-    st.markdown("**Vérifiez les informations extraites — modifiez si nécessaire :**")
-
+    st.markdown("**Vérifiez et complétez vos informations**")
     with st.form("confirm_form"):
         c1, c2 = st.columns(2)
         nom = c1.text_input("Prénom Nom", value=data.get("nom", ""))
         poste = c2.text_input("Poste actuel", value=data.get("poste_actuel", ""))
         c3, c4 = st.columns(2)
         secteur = c3.text_input("Secteur", value=data.get("secteur", ""))
-        exp = c4.number_input("Années d'expérience", min_value=0, max_value=50,
-                               value=int(data.get("annees_experience", 5)))
-        competences_str = st.text_input(
-            "Compétences (séparées par des virgules)",
-            value=", ".join(data.get("competences", [])),
-        )
+        exp = c4.number_input("Années d'expérience", min_value=0, max_value=50, value=int(data.get("annees_experience", 5)))
+        competences_str = st.text_input("Compétences (séparées par des virgules)", value=", ".join(data.get("competences", [])))
         formation = st.text_input("Formation", value=data.get("formation", ""))
         objectif = st.text_area(
-            "Votre objectif avec l'IA *",
-            placeholder="Ex : Je veux piloter des projets IA dans mon secteur, évoluer vers un rôle de consultant...",
-            help="Cette info n'est pas sur LinkedIn — décrivez ce qui vous attire dans l'IA.",
+            "Votre objectif avec l'IA",
+            placeholder="Ex : Je veux évoluer vers un rôle de consultant IA dans mon secteur, ou changer complètement de domaine...",
+            help="Cette info n'est pas sur LinkedIn — une phrase suffit.",
         )
-
-        col_a, col_b = st.columns(2)
-        confirm = col_a.form_submit_button("🚀 Lancer l'analyse complète", type="primary", use_container_width=True)
-        col_b.form_submit_button("↩️ Changer d'URL", use_container_width=True)
+        confirm = st.form_submit_button("Lancer l'analyse →", type="primary", use_container_width=True)
 
     if confirm:
         if not objectif.strip():
-            st.error("⚠️ Décrivez votre objectif avec l'IA — c'est essentiel pour la recommandation.")
+            st.error("Décrivez votre objectif avec l'IA — c'est essentiel pour la recommandation.")
         else:
             st.session_state.profile = UserProfile(
-                nom=nom,
-                poste_actuel=poste,
-                annees_experience=int(exp),
+                nom=nom, poste_actuel=poste, annees_experience=int(exp),
                 secteur=secteur,
                 competences=[c.strip() for c in competences_str.split(",") if c.strip()],
-                formation=formation,
-                objectif_reconversion=objectif,
+                formation=formation, objectif_reconversion=objectif,
             )
             st.session_state.phase = "analyzing"
             st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
-# PHASE 3 — Analyse IA
-# ═══════════════════════════════════════════════════════════════
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 3 — Analyse
+# ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "analyzing":
     profile = st.session_state.profile
 
-    st.markdown(f"""
-    <div style="background:#f0f9ff;border:1px solid #7dd3fc;border-radius:12px;padding:20px 24px;">
-        <strong>⚙️ Analyse du profil de {profile.nom} en cours...</strong><br>
-        <span style="color:#64748b;">Croisement des compétences avec les opportunités IA du marché</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="page">', unsafe_allow_html=True)
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
+    st.markdown("<br>")
 
-    # Enrichissement conversationnel via Claude
-    intro_prompt = f"""Le profil de {profile.nom} vient d'être extrait de LinkedIn.
-Voici son parcours : {profile.annees_experience} ans en tant que {profile.poste_actuel} dans le {profile.secteur}.
-Son objectif : {profile.objectif_reconversion}.
+    st.markdown(f"**Analyse de {profile.nom} en cours...**")
+    st.caption("Claude Opus examine votre parcours et croise vos compétences avec les opportunités IA.")
 
-Écris un court message d'accueil personnalisé (3-4 phrases) qui :
-1. Reconnaît son parcours et ses compétences clés
-2. Exprime de l'enthousiasme pour son projet de reconversion
-3. Annonce que l'analyse est en cours"""
+    client = get_client()
+    intro_prompt = f"""Profil de {profile.nom} : {profile.annees_experience} ans en tant que {profile.poste_actuel} dans le {profile.secteur}. Objectif : {profile.objectif_reconversion}.
+Écris un message d'accueil personnalisé et chaleureux (3 phrases) : reconnais son parcours, montre de l'enthousiasme pour sa démarche, annonce que l'analyse est en cours."""
 
-    with st.chat_message("assistant", avatar="🤖"):
+    with st.chat_message("assistant", avatar="✦"):
         placeholder = st.empty()
-        client = get_client()
         full = ""
         with client.messages.stream(
-            model=MODEL,
-            max_tokens=512,
-            system=SYSTEM_PROMPT,
+            model=MODEL, max_tokens=400, system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": intro_prompt}],
             thinking={"type": "adaptive"},
         ) as stream:
@@ -661,7 +602,7 @@ Son objectif : {profile.objectif_reconversion}.
                 placeholder.markdown(full + "▌")
         placeholder.markdown(full)
 
-    with st.spinner("🧠 Analyse approfondie avec thinking adaptatif..."):
+    with st.spinner("Analyse en cours..."):
         result = run_analysis(profile)
         st.session_state.result = result
 
@@ -671,12 +612,13 @@ Son objectif : {profile.objectif_reconversion}.
     st.session_state.phase = "done"
     st.rerun()
 
-# ═══════════════════════════════════════════════════════════════
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PHASE 4 — Résultats
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.phase == "done":
-    render_results(
-        st.session_state.profile,
-        st.session_state.result,
-        st.session_state.profile_id,
-    )
+    st.markdown('<div class="page">', unsafe_allow_html=True)
+    st.markdown("""<div class="nav"><span class="nav-logo">✦ &nbsp;Repositionnement IA</span></div>""", unsafe_allow_html=True)
+    render_results(st.session_state.profile, st.session_state.result, st.session_state.profile_id)
+    st.markdown('</div>', unsafe_allow_html=True)
