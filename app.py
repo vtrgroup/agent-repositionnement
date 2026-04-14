@@ -137,6 +137,51 @@ h1, h2, h3, h4, h5 {
 .testi-role { font-size:12px; color:#64748b; margin:2px 0 0; }
 .testi-arrow { color:#5b5bd6; font-weight:600; }
 
+/* Product preview mockup */
+.preview-wrap {
+    margin:40px auto 0; max-width:720px; position:relative;
+    background:linear-gradient(135deg,#f5f3ff 0%,#fafafa 100%);
+    border-radius:20px; padding:36px 24px 0; border:1px solid #f1f5f9;
+}
+.preview-label {
+    position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+    background:#fff; border:1px solid #e2e8f0; border-radius:100px;
+    padding:5px 14px; font-size:11px; font-weight:600; color:#64748b;
+    letter-spacing:.5px; text-transform:uppercase;
+}
+.preview-card {
+    background:#fff; border-radius:14px; padding:24px 28px;
+    box-shadow:0 8px 32px rgba(91,91,214,.12);
+    border:1px solid #ede9fe; margin-bottom:-24px;
+}
+.preview-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid #f8f8f8; }
+.preview-score-pill {
+    display:inline-flex; align-items:center; gap:8px;
+    background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff;
+    border-radius:100px; padding:6px 14px; font-size:13px; font-weight:700;
+}
+.preview-role { font-size:15px; font-weight:700; color:#5b5bd6; }
+.preview-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.preview-chip {
+    background:#f5f3ff; color:#5b21b6; border-radius:100px;
+    padding:4px 12px; font-size:12px; font-weight:500;
+}
+.preview-step {
+    background:#fafafa; border-left:3px solid #5b5bd6;
+    border-radius:0 6px 6px 0; padding:10px 14px; font-size:12.5px;
+    color:#0f172a; margin-bottom:6px;
+}
+.preview-step-meta { color:#94a3b8; font-size:11px; margin-top:2px; }
+
+/* Visual split section */
+.split-row { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; }
+.split-img {
+    width:100%; height:340px; object-fit:cover;
+    border-radius:20px; box-shadow:0 8px 32px rgba(0,0,0,.08);
+}
+.split-text .s-label { margin-bottom:14px; }
+.split-text .s-title { font-size:26px; margin-bottom:16px; }
+
 /* Personas / For who */
 .personas { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
 .persona {
@@ -406,6 +451,39 @@ if st.session_state.phase == "landing":
                 st.session_state.phase = "confirming"
                 st.rerun()
 
+    # Product preview mockup
+    st.markdown("""
+    <div class="preview-wrap">
+        <div class="preview-label">Aperçu de votre analyse</div>
+        <div class="preview-card">
+            <div class="preview-header">
+                <span class="preview-role">→ AI Product Manager</span>
+                <span class="preview-score-pill">⭐ 82 / 100</span>
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px;">Compétences transférables</div>
+                <div class="preview-row">
+                    <span class="preview-chip">Gestion de projet</span>
+                    <span class="preview-chip">Communication</span>
+                    <span class="preview-chip">Analyse business</span>
+                    <span class="preview-chip">Leadership</span>
+                </div>
+            </div>
+            <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px;">Plan de formation</div>
+                <div class="preview-step">
+                    <div style="font-weight:700;">1. Fondamentaux IA et ML</div>
+                    <div class="preview-step-meta">3 semaines · Coursera — AI For Everyone (Andrew Ng)</div>
+                </div>
+                <div class="preview-step">
+                    <div style="font-weight:700;">2. Prompt engineering avancé</div>
+                    <div class="preview-step-meta">2 semaines · DeepLearning.AI — ChatGPT Prompt Engineering</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
     # Features
@@ -465,6 +543,28 @@ if st.session_state.phase == "landing":
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown('<hr class="sep">', unsafe_allow_html=True)
+
+    # Split image + texte
+    st.markdown("""
+    <div class="split-row">
+        <div>
+            <img class="split-img" src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop" alt="">
+        </div>
+        <div class="split-text">
+            <div class="s-label">La démarche</div>
+            <div class="s-title">Vos 10 ans d'expérience<br>sont votre avantage</div>
+            <div class="s-sub">
+                L'économie IA a besoin de profils qui comprennent un secteur,
+                pas seulement de développeurs. Votre connaissance métier — marketing,
+                finance, santé, RH — est précisément ce qui manque aux équipes tech.<br><br>
+                L'agent identifie comment capitaliser sur cet acquis pour accéder
+                aux rôles IA sans repartir de zéro.
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown('<hr class="sep">', unsafe_allow_html=True)
 
