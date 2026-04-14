@@ -128,16 +128,29 @@ h1, h2, h3, h4, h5 {
 }
 .cta-band p { font-size:15px; color:rgba(255,255,255,.7); margin-bottom:0; }
 
-/* Boutons Streamlit — violet cohérent */
-.stButton > button {
+/* Boutons Streamlit — violet cohérent (inclut form_submit_button) */
+.stButton > button,
+[data-testid="stFormSubmitButton"] > button,
+button[kind="primary"],
+button[kind="secondaryFormSubmit"],
+button[kind="primaryFormSubmit"] {
     background:#5b5bd6 !important; color:#fff !important;
-    border:none !important; border-radius:10px !important;
+    border:1px solid #5b5bd6 !important; border-radius:10px !important;
     font-weight:600 !important; font-size:14px !important;
     padding:11px 24px !important; letter-spacing:-.1px !important;
     transition:opacity .15s !important; box-shadow:none !important;
 }
-.stButton > button:hover { opacity:.85 !important; background:#5b5bd6 !important; }
-.stButton > button:focus { box-shadow:none !important; outline:none !important; }
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] > button:hover,
+button[kind="primary"]:hover,
+button[kind="secondaryFormSubmit"]:hover,
+button[kind="primaryFormSubmit"]:hover {
+    opacity:.85 !important; background:#5b5bd6 !important; color:#fff !important;
+}
+.stButton > button:focus,
+[data-testid="stFormSubmitButton"] > button:focus {
+    box-shadow:none !important; outline:none !important;
+}
 
 /* Bouton CTA band (blanc) */
 .cta-btn .stButton > button {
@@ -337,7 +350,13 @@ if st.session_state.phase == "landing":
             with st.status("Récupération du profil...", expanded=False) as s:
                 data = extract_linkedin_profile(url.strip(), ANTHROPIC_API_KEY)
             if data.get("error") == "login_required":
-                st.warning("Profil non accessible — rendez-le public ou saisissez vos infos manuellement.")
+                st.warning(
+                    "⚠️ **LinkedIn bloque l'accès depuis le cloud** — c'est une limitation de "
+                    "LinkedIn qui restreint les accès automatisés. Pas d'inquiétude : "
+                    "saisissez vos infos manuellement en quelques secondes, le résultat sera identique."
+                )
+                import time
+                time.sleep(2)
                 st.session_state.phase = "manual_input"
                 st.rerun()
             elif "error" in data:
