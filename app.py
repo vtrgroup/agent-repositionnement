@@ -439,7 +439,14 @@ JSON :
     raw = resp.content[-1].text.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw).strip()
-    return AnalysisResult(**json.loads(raw))
+    try:
+        return AnalysisResult(**json.loads(raw))
+    except json.JSONDecodeError:
+        # Extraire le premier bloc {...} du texte (Claude a pu ajouter du préambule)
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if match:
+            return AnalysisResult(**json.loads(match.group()))
+        raise
 
 def mission_coach_system(profile: UserProfile, result: AnalysisResult, mission: Dict) -> str:
     return f"""Tu es le coach d'entraînement IA de {profile.nom}, qui travaille actuellement comme {profile.poste_actuel} dans le secteur {profile.secteur} avec {profile.annees_experience} ans d'expérience.
