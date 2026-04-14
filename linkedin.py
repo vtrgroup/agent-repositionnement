@@ -1,6 +1,7 @@
-"""Extraction automatique de profil LinkedIn — scraping + Claude."""
+"""Extraction automatique de profil LinkedIn — Proxycurl + scraping direct + Claude."""
 
 import json
+import os
 import re
 from typing import Dict, Any
 
@@ -9,6 +10,9 @@ from bs4 import BeautifulSoup
 import anthropic
 
 from config import MODEL
+
+PROXYCURL_API_KEY = os.environ.get("PROXYCURL_API_KEY", "")
+PROXYCURL_URL = "https://nubela.co/proxycurl/api/v2/linkedin"
 
 # Headers imitant un navigateur Chrome réel
 BROWSER_HEADERS = {
@@ -177,13 +181,99 @@ CONTENU :
         return {"error": f"Parse error: {raw[:200]}"}
 
 
+def fetch_via_proxycurl(url: str) -> Dict[str, Any]:
+    """Utilise l'API Proxycurl pour récupérer un profil LinkedIn structuré."""
+    if not PROXYCURL_API_KEY:
+        return {"error": "no_proxycurl_key"}
+
+    try:
+        resp = requests.get(
+            PROXYCURL_URL,
+            headers={"Authorization": f"Bearer {PROXYCURL_API_KEY}"},
+            params={"url": url, "use_cache": "if-present"},
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return {"error": f"proxycurl_http_{resp.status_code}: {resp.text[:200]}"}
+        return resp.json()
+    except requests.RequestException as e:
+        return {"error": f"proxycurl_error: {e}"}
+
+
+def map_proxycurl_to_profile(pc: Dict[str, Any]) -> Dict[str, Any]:
+    """Transforme la réponse Proxycurl en format attendu par l'app."""
+    full_name = f"{pc.get('first_name','')} {pc.get('last_name','')}".strip() or pc.get("full_name", "")
+
+    # Expériences — estimer années
+    experiences = pc.get("experiences", []) or []
+    total_years = 0
+    current_poste = ""
+    current_company = ""
+    for exp in experiences:
+        starts = exp.get("starts_at") or {}
+        ends = exp.get("ends_at") or {}
+        if starts.get("year"):
+            end_year = ends.get("year") if ends else 2026
+            total_years += max(0, (end_year or 2026) - starts["year"])
+        if not current_poste and (exp.get("ends_at") is None):
+            current_poste = exp.get("title", "")
+            current_company = exp.get("company", "")
+    if not current_poste and experiences:
+        current_poste = experiences[0].get("title", "")
+        current_company = experiences[0].get("company", "")
+
+    # Formations
+    educations = pc.get("education", []) or []
+    formation_parts = []
+    for edu in educations[:2]:
+        degree = edu.get("degree_name") or ""
+        field = edu.get("field_of_study") or ""
+        school = edu.get("school") or ""
+        piece = " ".join(p for p in [degree, field, school] if p).strip()
+        if piece:
+            formation_parts.append(piece)
+    formation = " · ".join(formation_parts)
+
+    # Compétences
+    competences = (pc.get("skills") or [])[:8]
+    if not competences:
+        # Fallback : déduire des titres de poste récents
+        competences = [e.get("title", "") for e in experiences[:5] if e.get("title")]
+
+    # Secteur — approximation depuis l'industrie de l'entreprise actuelle ou headline
+    headline = pc.get("headline") or ""
+    secteur = pc.get("industry") or current_company or ""
+
+    location_parts = [pc.get("city"), pc.get("country_full_name") or pc.get("country")]
+    localisation = ", ".join(p for p in location_parts if p)
+
+    resume = pc.get("summary") or headline
+
+    return {
+        "nom": full_name,
+        "poste_actuel": current_poste,
+        "annees_experience": min(total_years, 50),
+        "secteur": secteur,
+        "competences": [c for c in competences if c],
+        "formation": formation,
+        "entreprise_actuelle": current_company,
+        "localisation": localisation,
+        "resume": resume[:400] if resume else "",
+    }
+
+
 def extract_linkedin_profile(url: str, api_key: str) -> Dict[str, Any]:
     """
-    Pipeline complet : scrape LinkedIn → extrait les données → parse avec Claude.
-    LinkedIn obfusque les postes/compétences avec *** pour les non-connectés,
-    mais nom, entreprise, localisation et description restent lisibles.
-    Retourne un dict profil ou {"error": "..."}.
+    Pipeline : Proxycurl (si clé dispo) → scraping direct → Claude.
     """
+    # 1. Essai via Proxycurl (marche depuis n'importe quelle IP)
+    if PROXYCURL_API_KEY:
+        pc_data = fetch_via_proxycurl(url)
+        if "error" not in pc_data:
+            return map_proxycurl_to_profile(pc_data)
+        # Si Proxycurl échoue, on continue avec le fallback
+
+    # 2. Fallback : scraping direct (ne marche pas sur IP datacenter)
     html, status = fetch_linkedin_page(url)
 
     if status == "login_required":
