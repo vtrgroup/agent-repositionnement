@@ -341,6 +341,13 @@ PROFIL :
 RÔLES IA :
 {roles_list}
 
+IMPORTANT pour le plan_formation :
+- PAS de cours en ligne (Coursera, Udemy, etc.)
+- UNIQUEMENT des exercices pratiques concrets à réaliser DIRECTEMENT avec Claude Opus 4.6 (claude.ai) ou ChatGPT
+- Chaque étape = une mission pratique que la personne exécute elle-même en dialoguant avec l'IA, appliquée à SON métier actuel ({profile.poste_actuel} / {profile.secteur})
+- Exemples de formats attendus : "Faire auditer tes 5 derniers emails par Claude", "Créer 10 prompts-types pour ton workflow X", "Automatiser une tâche Y avec Claude Projects"
+- Les ressources = liens vers claude.ai / documentation Anthropic / exemples de prompts, PAS vers des plateformes de cours
+
 JSON :
 {{
   "role_cible": "rôle parmi la liste",
@@ -349,10 +356,10 @@ JSON :
   "competences_transferables": ["c1","c2","c3"],
   "competences_a_acquerir": ["c1","c2","c3"],
   "plan_formation": [
-    {{"etape":"1. Titre","duree":"X semaines","ressources":"Plateforme"}},
-    {{"etape":"2. Titre","duree":"X semaines","ressources":"Plateforme"}},
-    {{"etape":"3. Titre","duree":"X mois","ressources":"Plateforme"}},
-    {{"etape":"4. Titre","duree":"X mois","ressources":"Plateforme"}}
+    {{"etape":"1. Mission pratique concrète appliquée à son secteur","duree":"X jours","ressources":"Outil IA à utiliser + type de prompts/exercice"}},
+    {{"etape":"2. Mission pratique concrète","duree":"X jours","ressources":"Outil + exercice"}},
+    {{"etape":"3. Projet pratique plus ambitieux","duree":"X semaines","ressources":"Outil + livrable attendu"}},
+    {{"etape":"4. Projet final démontrable","duree":"X semaines","ressources":"Outil + format du livrable portfolio"}}
   ],
   "salaire_estime": "fourchette en France",
   "perspectives": "2-3 phrases",
@@ -509,12 +516,12 @@ if st.session_state.phase == "landing":
             <div>
                 <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:8px;">Plan de formation</div>
                 <div class="preview-step">
-                    <div style="font-weight:700;">1. Fondamentaux IA et ML</div>
-                    <div class="preview-step-meta">3 semaines · Coursera — AI For Everyone (Andrew Ng)</div>
+                    <div style="font-weight:700;">1. Audit IA de vos 10 dossiers clients</div>
+                    <div class="preview-step-meta">5 jours · Claude Opus sur claude.ai — analyse et synthèse</div>
                 </div>
                 <div class="preview-step">
-                    <div style="font-weight:700;">2. Prompt engineering avancé</div>
-                    <div class="preview-step-meta">2 semaines · DeepLearning.AI — ChatGPT Prompt Engineering</div>
+                    <div style="font-weight:700;">2. Créer 15 prompts-types pour votre workflow</div>
+                    <div class="preview-step-meta">1 semaine · Claude Projects — bibliothèque de prompts métier</div>
                 </div>
             </div>
         </div>
