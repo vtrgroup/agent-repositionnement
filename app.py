@@ -428,17 +428,21 @@ if st.session_state.phase == "landing":
 
     st.markdown("""
     <div class="hero">
-        <div class="social-proof">
-            <div class="avatar-stack">
-                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces" alt="">
-                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces" alt="">
-                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces" alt="">
-                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=faces" alt="">
-                <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces" alt="">
+        <div style="display:block;margin-bottom:18px;">
+            <div class="social-proof">
+                <div class="avatar-stack">
+                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces" alt="">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces" alt="">
+                    <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces" alt="">
+                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=faces" alt="">
+                    <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces" alt="">
+                </div>
+                <span class="social-proof-text"><strong>+200</strong> professionnels ont trouvé leur rôle IA</span>
             </div>
-            <span class="social-proof-text"><strong>+200</strong> professionnels ont trouvé leur rôle IA</span>
         </div>
-        <div class="hero-eyebrow">Bilan professionnel gratuit</div>
+        <div style="display:block;">
+            <div class="hero-eyebrow">Bilan professionnel gratuit</div>
+        </div>
         <h1>Votre place dans<br>l'économie <span>IA</span></h1>
         <p class="hero-sub">
             Collez votre URL LinkedIn. En 60 secondes, découvrez le rôle IA
